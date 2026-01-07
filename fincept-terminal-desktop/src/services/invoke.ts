@@ -442,8 +442,12 @@ export async function joinPath(...paths: string[]): Promise<string> {
     const { join: tauriJoin } = await import('@tauri-apps/api/path');
     return tauriJoin(...paths);
   } else {
-    // In web mode, use forward slash path joining
-    return paths.map(p => p.replace(/^\/+|\/+$/g, '')).join('/');
+    // In web mode, use forward slash path joining while preserving leading slashes
+    const result = paths
+      .map((p, i) => i === 0 ? p.replace(/\/+$/g, '') : p.replace(/^\/+|\/+$/g, ''))
+      .filter(p => p.length > 0)
+      .join('/');
+    return result;
   }
 }
 
@@ -551,6 +555,7 @@ export async function openDialog(options?: OpenDialogOptions): Promise<string | 
     return open(options);
   } else {
     // In web mode, use HTML file input
+    // Note: Returns file names (not full paths) as web browsers don't expose full paths for security
     return new Promise((resolve) => {
       const input = document.createElement('input');
       input.type = 'file';
@@ -573,15 +578,16 @@ export async function openDialog(options?: OpenDialogOptions): Promise<string | 
 
 /**
  * Open a save file dialog
+ * In web mode, returns null as file system dialogs are not available
  */
 export async function saveDialog(options?: SaveDialogOptions): Promise<string | null> {
   if (IS_TAURI) {
     const { save } = await import('@tauri-apps/plugin-dialog');
     return save(options);
   } else {
-    // In web mode, return a default filename (actual save will be handled via download)
-    console.warn('[Web Mode] Save dialog not available, returning default path');
-    return options?.defaultPath || 'download';
+    // In web mode, save dialogs are not available - use download API instead
+    console.warn('[Web Mode] Save dialog not available. Use browser download API for file saving.');
+    return null;
   }
 }
 
