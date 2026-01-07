@@ -55,9 +55,13 @@ async function invokeWeb<T>(cmd: string, args: Record<string, unknown>): Promise
 
   const result = await response.json();
   
-  // Handle RPC response format
-  if (result.success === false && result.error) {
+  // Handle RPC response format - check for error first
+  if (result.error) {
     throw new Error(result.error);
+  }
+  
+  if (result.success === false) {
+    throw new Error(result.error || 'Unknown error');
   }
 
   // Return the data if it exists, otherwise return the whole result
