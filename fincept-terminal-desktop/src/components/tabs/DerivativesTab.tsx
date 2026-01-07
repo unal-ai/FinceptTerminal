@@ -7,7 +7,7 @@ import {
   Percent, Calendar, Settings, Info, ChevronDown, ChevronUp,
   Copy, Download, RefreshCw, Zap, Target, AlertCircle
 } from 'lucide-react';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/services/invoke';
 import { useTranslation } from 'react-i18next';
 import { TabFooter } from '@/components/common/TabFooter';
 

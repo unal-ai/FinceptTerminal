@@ -3,7 +3,7 @@
  * Handles all Qlib operations including data fetching, model training, and backtesting
  */
 
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/services/invoke';
 
 export interface QlibModel {
   id: string;

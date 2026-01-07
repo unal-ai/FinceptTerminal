@@ -36,8 +36,7 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { reportService, ReportTemplate, ReportComponent } from '@/services/reportService';
-import { save, open } from '@tauri-apps/plugin-dialog';
-import { invoke } from '@tauri-apps/api/core';
+import { saveDialog as save, openDialog as open, invoke } from '@/services/invoke';
 import { toast } from 'sonner';
 import { useTerminalTheme } from '@/contexts/ThemeContext';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';

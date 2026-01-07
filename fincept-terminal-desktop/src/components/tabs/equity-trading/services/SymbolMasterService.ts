@@ -3,7 +3,7 @@
  * Fetches and caches NSE symbol data from Fyers
  */
 
-import { BaseDirectory, mkdir, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
+import { BaseDirectory, mkdir, readTextFile, writeTextFile } from '@/services/invoke';
 
 interface SymbolData {
   fyToken: string;

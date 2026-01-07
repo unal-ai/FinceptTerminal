@@ -6,7 +6,7 @@
  * Reads API keys from Settings tab LLM configuration.
  */
 
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/services/invoke';
 import { sqliteService } from './sqliteService';
 
 // ============================================================================

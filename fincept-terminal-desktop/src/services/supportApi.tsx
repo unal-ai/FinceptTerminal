@@ -1,7 +1,7 @@
 // File: src/services/supportApi.tsx
 // Support Ticket API Service
 
-import { fetch } from '@tauri-apps/plugin-http';
+import { tauriFetch as fetch } from '@/services/invoke';
 
 // API Configuration
 const API_CONFIG = {

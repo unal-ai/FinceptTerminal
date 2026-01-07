@@ -1,5 +1,5 @@
-import { invoke } from '@tauri-apps/api/core';
-import { open as shellOpen } from '@tauri-apps/plugin-shell';
+import { invoke } from '@/services/invoke';
+import { shellOpen } from '@/services/invoke';
 import { sqliteService } from './sqliteService';
 import { reportLogger } from './loggerService';
 

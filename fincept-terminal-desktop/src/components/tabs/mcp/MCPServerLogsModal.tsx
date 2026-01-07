@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, Download, Trash2 } from 'lucide-react';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/services/invoke';
 
 interface MCPServerLogsModalProps {
   serverId: string;

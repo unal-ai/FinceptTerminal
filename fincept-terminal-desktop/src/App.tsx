@@ -55,7 +55,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const checkSetup = async () => {
       try {
-        const { invoke } = await import('@tauri-apps/api/core');
+        const { invoke } = await import('@/services/invoke');
         const status: any = await invoke('check_setup_status');
         setSetupComplete(!status.needs_setup);
       } catch (err) {

@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/services/invoke';
 
 // Alpha Vantage Service Layer - Fault-Tolerant Modular Design
 // Each endpoint works independently with comprehensive error handling

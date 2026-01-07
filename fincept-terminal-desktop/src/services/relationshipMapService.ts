@@ -1,7 +1,7 @@
 // Relationship Map Service - Production-Level Implementation
 // Combines Edgar (SEC filings) + yfinance (market data) for comprehensive company intelligence
 
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/services/invoke';
 
 // ============================================================================
 // TYPE DEFINITIONS

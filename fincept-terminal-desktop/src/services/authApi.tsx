@@ -1,7 +1,7 @@
 // File: src/services/authApi.ts
 // Authentication API service for handling all auth-related API calls
 
-import { fetch } from '@tauri-apps/plugin-http';
+import { tauriFetch as fetch } from '@/services/invoke';
 
 // API Configuration
 const API_CONFIG = {

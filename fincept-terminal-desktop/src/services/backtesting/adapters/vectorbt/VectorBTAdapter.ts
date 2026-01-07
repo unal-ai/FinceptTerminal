@@ -5,7 +5,7 @@
  * Specializes in high-performance backtesting with NumPy/Pandas.
  */
 
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/services/invoke';
 import { BaseBacktestingAdapter } from '../BaseAdapter';
 import {
   ProviderCapabilities,

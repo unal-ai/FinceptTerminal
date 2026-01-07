@@ -2,7 +2,7 @@
 // Professional Bloomberg Terminal-Grade Agent Configuration Interface
 
 import React, { useState, useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/services/invoke';
 import ReactMarkdown from 'react-markdown';
 import {
   Bot,

@@ -1,6 +1,6 @@
 // Excel Service - Now using high-performance Rust SQLite backend via Tauri commands
 
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/services/invoke';
 
 export interface ExcelFile {
   id?: number;

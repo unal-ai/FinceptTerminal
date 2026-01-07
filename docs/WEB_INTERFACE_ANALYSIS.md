@@ -675,8 +675,9 @@ For internal use where authentication can be skipped, the Rust-native approach c
 
 **Frontend (src/services/):**
 - [x] Create unified `invoke()` wrapper (`src/services/invoke.ts`)
-- [ ] Update import in all 54 files using Tauri invoke
-  > **Note:** Future enhancement - existing Tauri imports work for desktop mode
+- [x] Update import in all 51+ files using Tauri invoke to use unified service
+  - Added `listen` function for event handling
+  - Added `appDataDir` and `joinPath` for path utilities
 
 **Build Configuration:**
 - [x] Add `web` feature flag to Cargo.toml
@@ -697,7 +698,7 @@ For internal use where authentication can be skipped, the Rust-native approach c
 - [x] `src-tauri/src/server/types.rs` - RPC request/response types
 - [x] `src-tauri/src/bin/server.rs` - Server binary entry point
 - [x] `src-tauri/src/data_sources/yfinance.rs` - Added `YFinanceProviderWeb` for web mode
-- [x] `src/services/invoke.ts` - Unified invoke wrapper
+- [x] `src/services/invoke.ts` - Unified invoke wrapper with `invoke`, `listen`, `appDataDir`, `joinPath`
 - [x] `Dockerfile.web` - Web deployment
 - [x] `docker-compose.web.yml` - Development setup
 

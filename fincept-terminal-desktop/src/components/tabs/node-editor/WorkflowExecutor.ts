@@ -1,6 +1,6 @@
 import { Node, Edge } from 'reactflow';
 import { workflowService } from '@/services/workflowService';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/services/invoke';
 
 interface ExecuteOptions {
   name: string;

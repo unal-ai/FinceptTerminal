@@ -11,7 +11,7 @@ import {
 
 import { useBrokerContext } from '../../contexts/BrokerContext';
 import { useRustTicker, useRustOrderBook, useRustTrades } from '../../hooks/useRustWebSocket';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/services/invoke';
 // Import new enhanced order form
 import { EnhancedOrderForm } from './trading/core/OrderForm';
 import { HyperLiquidVaultManager } from './trading/exchange-specific/hyperliquid';

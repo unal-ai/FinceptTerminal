@@ -1,5 +1,5 @@
 // Python Agent Service - Interface to execute Python agents via Tauri
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/services/invoke';
 import { pythonAgentLogger } from './loggerService';
 
 export interface AgentParameter {

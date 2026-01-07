@@ -5,7 +5,7 @@
  * Manages process lifecycle, output parsing, and error handling.
  */
 
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/services/invoke';
 import { LeanCliArgs, LeanConfig, LeanProcessStatus, LeanError } from './types';
 
 /**

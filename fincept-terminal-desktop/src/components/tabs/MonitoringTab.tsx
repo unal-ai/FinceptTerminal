@@ -2,8 +2,7 @@
 // Professional Bloomberg Terminal-Grade Market Monitoring Interface
 
 import React, { useState, useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+import { invoke, listen } from '@/services/invoke';
 import { toast } from 'sonner';
 import {
   Bell,

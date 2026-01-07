@@ -3,7 +3,7 @@
  * Provides VaR, CVaR, volatility, Sharpe ratio, option pricing, and entropy pooling
  */
 
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/services/invoke';
 
 // ============================================================================
 // TYPE DEFINITIONS

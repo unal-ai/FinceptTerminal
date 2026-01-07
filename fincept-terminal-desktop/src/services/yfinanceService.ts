@@ -1,7 +1,7 @@
 // YFinance Service - TypeScript wrapper for Tauri yfinance commands
 // Provides historical data and stock information
 
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/services/invoke';
 
 export interface HistoricalDataPoint {
   symbol: string;

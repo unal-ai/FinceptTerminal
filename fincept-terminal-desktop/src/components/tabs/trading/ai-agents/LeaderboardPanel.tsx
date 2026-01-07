@@ -39,7 +39,7 @@ export function LeaderboardPanel({ refreshInterval = 10000 }: LeaderboardPanelPr
   const fetchLeaderboard = async () => {
     try {
       setIsLoading(true);
-      const { invoke } = await import('@tauri-apps/api/core');
+      const { invoke } = await import('@/services/invoke');
       const response = await invoke('agno_get_leaderboard');
       const data = JSON.parse(response as string);
 

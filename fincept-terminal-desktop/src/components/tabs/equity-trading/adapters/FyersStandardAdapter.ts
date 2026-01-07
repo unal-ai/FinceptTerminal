@@ -669,8 +669,8 @@ export class FyersStandardAdapter extends BaseBrokerAdapter {
    */
   private async forwardToMonitoringService(message: DataSocketMessage): Promise<void> {
     try {
-      // Import Tauri emit dynamically to avoid issues if not in Tauri context
-      const { emit } = await import('@tauri-apps/api/event');
+      // Import emit from unified invoke service to work in both Tauri and web modes
+      const { emit } = await import('@/services/invoke');
 
       // Map to monitoring service format
       const tickerData = {

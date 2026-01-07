@@ -5,7 +5,7 @@
  * Implements IBacktestingProvider interface to enable platform-independent backtesting.
  */
 
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/services/invoke';
 import { BaseBacktestingAdapter } from '../BaseAdapter';
 import { backtestingLogger } from '../../../loggerService';
 import {

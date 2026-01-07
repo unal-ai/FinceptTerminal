@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/services/invoke';
 import { TrendingUp, BarChart3, PieChart, LineChart, Target, Shield, Calculator, Download } from 'lucide-react';
 
 // Library selection
