@@ -1,0 +1,88 @@
+# Fincept Terminal Web Server Dockerfile
+# 
+# This Dockerfile builds the Rust web server with Python runtime for analytics.
+#
+# Build:
+#   docker build -t fincept-server -f Dockerfile.web .
+#
+# Run:
+#   docker run -p 3000:3000 fincept-server
+#
+# With custom port:
+#   docker run -p 8080:8080 -e FINCEPT_PORT=8080 fincept-server
+
+# Stage 1: Build the Rust binary
+FROM rust:1.75-bookworm as builder
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    cmake \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy Cargo files first for dependency caching
+COPY fincept-terminal-desktop/src-tauri/Cargo.toml fincept-terminal-desktop/src-tauri/Cargo.lock ./
+
+# Create a dummy src to build dependencies
+RUN mkdir -p src/bin && \
+    echo "fn main() {}" > src/bin/server.rs && \
+    echo "pub fn lib() {}" > src/lib.rs
+
+# Build dependencies only (this layer will be cached)
+RUN cargo build --release --features web --bin fincept-server 2>/dev/null || true
+
+# Remove the dummy files
+RUN rm -rf src
+
+# Copy the actual source code
+COPY fincept-terminal-desktop/src-tauri/src ./src
+COPY fincept-terminal-desktop/src-tauri/build.rs ./
+COPY fincept-terminal-desktop/src-tauri/tauri.conf.json ./
+
+# Build the release binary
+RUN cargo build --release --features web --bin fincept-server
+
+# Stage 2: Runtime image with Python
+FROM python:3.11-slim-bookworm
+
+WORKDIR /app
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the Rust binary from builder
+COPY --from=builder /app/target/release/fincept-server /usr/local/bin/
+
+# Copy Python scripts
+COPY fincept-terminal-desktop/src-tauri/resources/scripts ./resources/scripts
+
+# Install Python dependencies
+COPY fincept-terminal-desktop/src-tauri/resources/requirements*.txt ./resources/
+RUN pip install --no-cache-dir -r ./resources/requirements-numpy2.txt || \
+    pip install --no-cache-dir -r ./resources/requirements.txt
+
+# Set environment variables
+ENV FINCEPT_HOST=0.0.0.0
+ENV FINCEPT_PORT=3000
+ENV FINCEPT_SCRIPTS_PATH=/app/resources/scripts
+ENV PYTHONUNBUFFERED=1
+
+# Create non-root user
+RUN useradd -m -s /bin/bash fincept
+RUN chown -R fincept:fincept /app
+USER fincept
+
+# Expose the server port
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:${FINCEPT_PORT}/api/health || exit 1
+
+# Start the server
+CMD ["fincept-server"]
