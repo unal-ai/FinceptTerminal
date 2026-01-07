@@ -17,6 +17,17 @@ repository = "https://github.com/Fincept-Corporation/FinceptTerminal"
 name = "fincept_terminal_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+# Web server binary (feature-gated)
+[[bin]]
+name = "fincept-server"
+path = "src/bin/server.rs"
+required-features = ["web"]
+
+[features]
+default = []
+# Web server feature - enables Axum-based HTTP server
+web = ["axum", "tower-http"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
@@ -80,6 +91,10 @@ pin-project = "1.1"
 regex = "1.12.2"
 rayon = "1.11.0"
 quick-xml = "0.37"  # Fast XML/RSS parsing
+
+# Web server dependencies (optional, feature-gated)
+axum = { version = "0.7", optional = true }
+tower-http = { version = "0.5", features = ["cors"], optional = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 [target.'cfg(target_os = "macos")'.dependencies]

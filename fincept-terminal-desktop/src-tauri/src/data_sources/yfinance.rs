@@ -304,4 +304,245 @@ impl YFinanceProvider {
 
 // Removed Default implementation - requires AppHandle
 
+// ============================================================================
+// WEB-COMPATIBLE PROVIDER (No Tauri dependency)
+// ============================================================================
+
+/// Web-compatible YFinance provider that doesn't require Tauri's AppHandle
+/// This is used by the web server to call Python scripts directly
+pub struct YFinanceProviderWeb;
+
+impl YFinanceProviderWeb {
+    /// Get Python path for web server mode
+    fn get_python_path() -> std::path::PathBuf {
+        // In web mode, use system Python or bundled Python from environment
+        if let Ok(path) = std::env::var("FINCEPT_PYTHON_PATH") {
+            std::path::PathBuf::from(path)
+        } else {
+            // Try common Python paths
+            for path in &["python3", "python", "/usr/bin/python3", "/usr/local/bin/python3"] {
+                if which::which(path).is_ok() {
+                    return std::path::PathBuf::from(path);
+                }
+            }
+            std::path::PathBuf::from("python3")
+        }
+    }
+
+    /// Get script path for web server mode
+    fn get_script_path(script_name: &str) -> std::path::PathBuf {
+        // In web mode, scripts are in resources/scripts relative to binary
+        if let Ok(path) = std::env::var("FINCEPT_SCRIPTS_PATH") {
+            std::path::PathBuf::from(path).join(script_name)
+        } else {
+            let exe_dir = std::env::current_exe()
+                .map(|p| p.parent().map(|p| p.to_path_buf()).unwrap_or_default())
+                .unwrap_or_default();
+            
+            // Try multiple locations
+            let paths = [
+                exe_dir.join("resources/scripts").join(script_name),
+                exe_dir.join("../resources/scripts").join(script_name),
+                std::path::PathBuf::from("resources/scripts").join(script_name),
+                std::path::PathBuf::from("src-tauri/resources/scripts").join(script_name),
+            ];
+
+            for path in &paths {
+                if path.exists() {
+                    return path.clone();
+                }
+            }
+
+            // Default fallback
+            std::path::PathBuf::from("resources/scripts").join(script_name)
+        }
+    }
+
+    /// Fetch a single quote
+    pub async fn get_quote(symbol: &str) -> Result<QuoteData, String> {
+        let python_path = Self::get_python_path();
+        let script_path = Self::get_script_path("yfinance_data.py");
+
+        let mut cmd = Command::new(&python_path);
+        cmd.arg(&script_path)
+            .arg("quote")
+            .arg(symbol);
+
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
+        let output = cmd.output()
+            .map_err(|e| format!("Failed to execute Python script: {}", e))?;
+
+        if !output.status.success() {
+            let error = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("Python script failed: {}", error));
+        }
+
+        let json_output = String::from_utf8_lossy(&output.stdout);
+        serde_json::from_str(&json_output)
+            .map_err(|e| format!("Failed to parse JSON: {}", e))
+    }
+
+    /// Fetch multiple quotes
+    pub async fn get_quotes(symbols: &[String]) -> Result<Vec<QuoteData>, String> {
+        let python_path = Self::get_python_path();
+        let script_path = Self::get_script_path("yfinance_data.py");
+
+        let mut cmd = Command::new(&python_path);
+        cmd.arg(&script_path).arg("batch_quotes");
+
+        for symbol in symbols {
+            cmd.arg(symbol);
+        }
+
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
+        let output = cmd.output()
+            .map_err(|e| format!("Failed to execute Python script: {}", e))?;
+
+        if !output.status.success() {
+            let error = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("Python script failed: {}", error));
+        }
+
+        let json_output = String::from_utf8_lossy(&output.stdout);
+        serde_json::from_str(&json_output)
+            .map_err(|e| format!("Failed to parse JSON: {}", e))
+    }
+
+    /// Fetch historical data
+    pub async fn get_historical(symbol: &str, start_date: &str, end_date: &str) -> Result<Vec<HistoricalData>, String> {
+        let python_path = Self::get_python_path();
+        let script_path = Self::get_script_path("yfinance_data.py");
+
+        let mut cmd = Command::new(&python_path);
+        cmd.arg(&script_path)
+            .arg("historical")
+            .arg(symbol)
+            .arg(start_date)
+            .arg(end_date);
+
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
+        let output = cmd.output()
+            .map_err(|e| format!("Failed to execute Python script: {}", e))?;
+
+        if !output.status.success() {
+            let error = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("Python script failed: {}", error));
+        }
+
+        let json_output = String::from_utf8_lossy(&output.stdout);
+        serde_json::from_str(&json_output)
+            .map_err(|e| format!("Failed to parse JSON: {}", e))
+    }
+
+    /// Get period returns (7D, 30D)
+    pub async fn get_period_returns(symbol: &str) -> Result<serde_json::Value, String> {
+        let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+        let thirty_days_ago = (chrono::Utc::now() - chrono::Duration::days(35)).format("%Y-%m-%d").to_string();
+
+        let hist_data = Self::get_historical(symbol, &thirty_days_ago, &today).await?;
+
+        if hist_data.len() < 2 {
+            return Ok(serde_json::json!({
+                "symbol": symbol,
+                "seven_day": 0.0,
+                "thirty_day": 0.0
+            }));
+        }
+
+        let current_price = hist_data.last().map(|d| d.close).unwrap_or(0.0);
+
+        let seven_day_return = if hist_data.len() >= 7 {
+            let idx = hist_data.len() - 7;
+            let old_price = hist_data.get(idx).map(|d| d.close).unwrap_or(current_price);
+            if old_price > 0.0 {
+                ((current_price - old_price) / old_price) * 100.0
+            } else {
+                0.0
+            }
+        } else {
+            0.0
+        };
+
+        let thirty_day_return = if hist_data.len() >= 20 {
+            let old_price = hist_data.first().map(|d| d.close).unwrap_or(current_price);
+            if old_price > 0.0 {
+                ((current_price - old_price) / old_price) * 100.0
+            } else {
+                0.0
+            }
+        } else {
+            0.0
+        };
+
+        Ok(serde_json::json!({
+            "symbol": symbol,
+            "seven_day": seven_day_return,
+            "thirty_day": thirty_day_return
+        }))
+    }
+
+    /// Health check
+    pub async fn health_check() -> Result<bool, String> {
+        Self::get_quote("AAPL").await.map(|_| true)
+    }
+
+    /// Get stock info
+    pub async fn get_info(symbol: &str) -> Result<serde_json::Value, String> {
+        let python_path = Self::get_python_path();
+        let script_path = Self::get_script_path("yfinance_data.py");
+
+        let mut cmd = Command::new(&python_path);
+        cmd.arg(&script_path)
+            .arg("info")
+            .arg(symbol);
+
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
+        let output = cmd.output()
+            .map_err(|e| format!("Failed to execute Python script: {}", e))?;
+
+        if !output.status.success() {
+            let error = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("Python script failed: {}", error));
+        }
+
+        let json_output = String::from_utf8_lossy(&output.stdout);
+        serde_json::from_str(&json_output)
+            .map_err(|e| format!("Failed to parse JSON: {}", e))
+    }
+
+    /// Get financial statements
+    pub async fn get_financials(symbol: &str) -> Result<serde_json::Value, String> {
+        let python_path = Self::get_python_path();
+        let script_path = Self::get_script_path("yfinance_data.py");
+
+        let mut cmd = Command::new(&python_path);
+        cmd.arg(&script_path)
+            .arg("financials")
+            .arg(symbol);
+
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
+        let output = cmd.output()
+            .map_err(|e| format!("Failed to execute Python script: {}", e))?;
+
+        if !output.status.success() {
+            let error = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("Python script failed: {}", error));
+        }
+
+        let json_output = String::from_utf8_lossy(&output.stdout);
+        serde_json::from_str(&json_output)
+            .map_err(|e| format!("Failed to parse JSON: {}", e))
+    }
+}
+
 // Tests removed - require AppHandle which isn't available in unit tests

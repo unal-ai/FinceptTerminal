@@ -13,39 +13,44 @@ use tauri::{Manager, Listener};
 
 // Data sources and commands modules
 mod data_sources;
-mod commands;
+pub mod commands;
 mod utils;
 mod setup;
-mod database;
+pub mod database;
 mod python_runtime;
-mod websocket;
-mod barter_integration;
+pub mod websocket;
+pub mod barter_integration;
+
+// Web server module (feature-gated)
+#[cfg(feature = "web")]
+pub mod server;
+
 // mod finscript; // TODO: Implement FinScript module
 
 // MCP Server Process with communication channels
-struct MCPProcess {
+pub struct MCPProcess {
     child: Child,
     stdin: Arc<Mutex<ChildStdin>>,
     response_rx: Receiver<String>,
 }
 
 // Global state to manage MCP server processes
-struct MCPState {
-    processes: Mutex<HashMap<String, MCPProcess>>,
+pub struct MCPState {
+    pub processes: Mutex<HashMap<String, MCPProcess>>,
 }
 
 // Global state for WebSocket manager
-struct WebSocketState {
-    manager: Arc<tokio::sync::RwLock<websocket::WebSocketManager>>,
-    router: Arc<tokio::sync::RwLock<websocket::MessageRouter>>,
-    services: Arc<tokio::sync::RwLock<WebSocketServices>>,
+pub struct WebSocketState {
+    pub manager: Arc<tokio::sync::RwLock<websocket::WebSocketManager>>,
+    pub router: Arc<tokio::sync::RwLock<websocket::MessageRouter>>,
+    pub services: Arc<tokio::sync::RwLock<WebSocketServices>>,
 }
 
-struct WebSocketServices {
-    paper_trading: websocket::services::PaperTradingService,
-    arbitrage: websocket::services::ArbitrageService,
-    portfolio: websocket::services::PortfolioService,
-    monitoring: websocket::services::MonitoringService,
+pub struct WebSocketServices {
+    pub paper_trading: websocket::services::PaperTradingService,
+    pub arbitrage: websocket::services::ArbitrageService,
+    pub portfolio: websocket::services::PortfolioService,
+    pub monitoring: websocket::services::MonitoringService,
 }
 
 #[derive(Debug, Serialize)]
