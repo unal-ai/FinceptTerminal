@@ -16,7 +16,7 @@ import { Search, Building2, Users, TrendingUp, Calendar, BarChart3, Globe, Dolla
 import { useTerminalTheme } from '@/contexts/ThemeContext';
 import { TabFooter } from '@/components/common/TabFooter';
 import { relationshipMapService } from '@/services/relationshipMapService';
-import { open } from '@tauri-apps/plugin-shell';
+import { shellOpen as open } from '@/services/invoke';
 
 // ============================================================================
 // CUSTOM NODE COMPONENTS

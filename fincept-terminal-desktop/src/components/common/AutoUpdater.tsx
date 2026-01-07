@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { check, Update } from '@tauri-apps/plugin-updater';
-import { relaunch } from '@tauri-apps/plugin-process';
+import { IS_TAURI, relaunch as invokeRelaunch } from '@/services/invoke';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -14,6 +13,16 @@ import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Download, RefreshCw, CheckCircle2, XCircle, Info } from 'lucide-react';
 
+// Tauri Update type for internal use
+interface TauriUpdate {
+  available: boolean;
+  version: string;
+  currentVersion: string;
+  date?: string;
+  body?: string;
+  downloadAndInstall: (onProgress?: (progress: { event: string; data?: { chunkLength?: number; contentLength?: number } }) => void) => Promise<void>;
+}
+
 interface AutoUpdaterProps {
   checkOnMount?: boolean;
   checkIntervalMinutes?: number;
@@ -21,7 +30,7 @@ interface AutoUpdaterProps {
 
 export function AutoUpdater({ checkOnMount = true, checkIntervalMinutes = 30 }: AutoUpdaterProps) {
   const [updateAvailable, setUpdateAvailable] = useState(false);
-  const [updateInfo, setUpdateInfo] = useState<Update | null>(null);
+  const [updateInfo, setUpdateInfo] = useState<TauriUpdate | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -30,11 +39,21 @@ export function AutoUpdater({ checkOnMount = true, checkIntervalMinutes = 30 }: 
   const [updateReady, setUpdateReady] = useState(false);
 
   const checkForUpdates = async (silent = false) => {
+    // Only check for updates in Tauri mode
+    if (!IS_TAURI) {
+      if (!silent) {
+        setError('Auto-update is not available in web mode.');
+        setTimeout(() => setError(null), 3000);
+      }
+      return;
+    }
+
     try {
       setChecking(true);
       setError(null);
 
       console.log('[AutoUpdater] Checking for updates...');
+      const { check } = await import('@tauri-apps/plugin-updater');
       const update = await check();
 
       if (update?.available) {
@@ -42,7 +61,7 @@ export function AutoUpdater({ checkOnMount = true, checkIntervalMinutes = 30 }: 
         console.log(`[AutoUpdater] Current version: v${update.currentVersion}`);
         console.log(`[AutoUpdater] Release date: ${update.date}`);
 
-        setUpdateInfo(update);
+        setUpdateInfo(update as TauriUpdate);
         setUpdateAvailable(true);
 
         if (!silent) {
@@ -111,7 +130,7 @@ export function AutoUpdater({ checkOnMount = true, checkIntervalMinutes = 30 }: 
       // Auto-relaunch after 2 seconds
       setTimeout(async () => {
         console.log('[AutoUpdater] Relaunching application...');
-        await relaunch();
+        await invokeRelaunch();
       }, 2000);
 
     } catch (err) {

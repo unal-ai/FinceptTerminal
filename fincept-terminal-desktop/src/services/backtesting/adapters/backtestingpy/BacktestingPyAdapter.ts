@@ -5,7 +5,7 @@
  * Event-driven bar-by-bar processing with interactive visualizations.
  */
 
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/services/invoke';
 import { BaseBacktestingAdapter } from '../BaseAdapter';
 import { backtestingLogger } from '../../../loggerService';
 import {

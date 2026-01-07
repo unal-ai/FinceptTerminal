@@ -1,7 +1,7 @@
 // SQLite Service - Rust SQLite backend via Tauri commands
 // All database operations now use high-performance Rust backend
 
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/services/invoke';
 
 // Re-export watchlist services
 export { watchlistService } from './watchlistService';

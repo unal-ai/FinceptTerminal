@@ -1,9 +1,9 @@
 // Fyers Authentication Module
 // Automated token generation flow with TOTP
 
-import { fetch } from '@tauri-apps/plugin-http';
+import { tauriFetch as fetch } from '@/services/invoke';
 import * as OTPAuth from 'otpauth';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/services/invoke';
 import { FyersAuthConfig, FyersAuthResult } from './types';
 
 export class FyersAuth {

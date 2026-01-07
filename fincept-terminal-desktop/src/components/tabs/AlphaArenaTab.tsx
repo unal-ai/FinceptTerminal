@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Trophy, Play, Square, TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/services/invoke';
 import { TabFooter } from '@/components/common/TabFooter';
 import { useTranslation } from 'react-i18next';
 

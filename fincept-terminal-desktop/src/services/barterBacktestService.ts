@@ -3,7 +3,7 @@
  * TypeScript integration for the Rust barter-rs backend
  */
 
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/services/invoke';
 
 // ==================== Types ====================
 

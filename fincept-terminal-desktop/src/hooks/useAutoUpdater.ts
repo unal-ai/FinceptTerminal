@@ -1,14 +1,23 @@
 import { useEffect, useState } from 'react';
-import { check, type Update } from '@tauri-apps/plugin-updater';
-import { relaunch } from '@tauri-apps/plugin-process';
+import { IS_TAURI, relaunch } from '@/services/invoke';
 
 const CHECK_INTERVAL_MS = 30 * 60 * 1000; // Check every 30 minutes
 const LAST_CHECK_KEY = 'updater_last_check';
 const DISMISSED_VERSION_KEY = 'updater_dismissed_version';
 
+// Tauri Update type for internal use
+interface TauriUpdate {
+  available: boolean;
+  version: string;
+  currentVersion: string;
+  date?: string;
+  body?: string;
+  downloadAndInstall: (onProgress?: (progress: { event: string; data?: { chunkLength?: number; contentLength?: number } }) => void) => Promise<void>;
+}
+
 interface UseAutoUpdaterReturn {
   updateAvailable: boolean;
-  updateInfo: Update | null;
+  updateInfo: TauriUpdate | null;
   isChecking: boolean;
   isInstalling: boolean;
   installProgress: number;
@@ -20,17 +29,27 @@ interface UseAutoUpdaterReturn {
 
 export function useAutoUpdater(): UseAutoUpdaterReturn {
   const [updateAvailable, setUpdateAvailable] = useState(false);
-  const [updateInfo, setUpdateInfo] = useState<Update | null>(null);
+  const [updateInfo, setUpdateInfo] = useState<TauriUpdate | null>(null);
   const [isChecking, setIsChecking] = useState(false);
   const [isInstalling, setIsInstalling] = useState(false);
   const [installProgress, setInstallProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const checkForUpdate = async (silent = false) => {
+    // Only check for updates in Tauri mode
+    if (!IS_TAURI) {
+      if (!silent) {
+        setError('Auto-update is not available in web mode.');
+        setTimeout(() => setError(null), 3000);
+      }
+      return;
+    }
+
     try {
       setIsChecking(true);
       setError(null);
 
+      const { check } = await import('@tauri-apps/plugin-updater');
       const update = await check();
 
       if (update?.available) {
@@ -44,7 +63,7 @@ export function useAutoUpdater(): UseAutoUpdaterReturn {
           return;
         }
 
-        setUpdateInfo(update);
+        setUpdateInfo(update as TauriUpdate);
         setUpdateAvailable(true);
 
         // Update last check timestamp
@@ -93,7 +112,7 @@ export function useAutoUpdater(): UseAutoUpdaterReturn {
             setInstallProgress(0);
             break;
           case 'Progress':
-            downloadedBytes += event.data.chunkLength;
+            downloadedBytes += event.data?.chunkLength || 0;
             const progress = totalBytes > 0 ? (downloadedBytes / totalBytes) * 100 : 0;
             setInstallProgress(Math.min(progress, 100));
             break;
@@ -135,6 +154,9 @@ export function useAutoUpdater(): UseAutoUpdaterReturn {
   };
 
   useEffect(() => {
+    // Only set up auto-check in Tauri mode
+    if (!IS_TAURI) return;
+
     // Perform initial check on mount (delayed by 5 seconds to not interfere with app startup)
     const initialCheckTimer = setTimeout(() => {
       checkForUpdate(true);

@@ -1,7 +1,6 @@
 // SetupScreen.tsx - Bloomberg-style setup screen for embedded Python
 import React, { useState, useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+import { invoke, listen } from '@/services/invoke';
 import { Loader2, CheckCircle, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface SetupProgress {

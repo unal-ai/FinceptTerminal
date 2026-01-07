@@ -374,5 +374,358 @@ export interface SetupStatus {
   database_ready: boolean;
 }
 
+// ============================================================================
+// EVENT LISTENER (Tauri events / Web fallback)
+// ============================================================================
+
+/**
+ * Unlisten function type - call to unsubscribe from an event
+ */
+export type UnlistenFn = () => void;
+
+/**
+ * Event payload wrapper type
+ */
+export interface Event<T> {
+  payload: T;
+}
+
+/**
+ * Listen to Tauri events in desktop mode, no-op in web mode
+ * 
+ * In web mode, events should be handled via WebSocket or Server-Sent Events
+ * This function provides a compatible API that won't break web builds
+ * 
+ * @param event - Event name to listen to
+ * @param handler - Callback function to handle the event
+ * @returns Promise resolving to an unlisten function
+ */
+export async function listen<T>(
+  event: string,
+  handler: (event: Event<T>) => void
+): Promise<UnlistenFn> {
+  if (IS_TAURI) {
+    // Use native Tauri event listener
+    const { listen: tauriListen } = await import('@tauri-apps/api/event');
+    return tauriListen<T>(event, handler);
+  } else {
+    // In web mode, return no-op (events should be handled via WebSocket/SSE)
+    console.warn(`[Web Mode] Event listener for '${event}' is not available. Use WebSocket for real-time updates.`);
+    return () => {}; // No-op unlisten function
+  }
+}
+
+// ============================================================================
+// PATH UTILITIES (Tauri path API / Web fallback)
+// ============================================================================
+
+/**
+ * Get the application data directory
+ * In web mode, returns a sensible default path
+ */
+export async function appDataDir(): Promise<string> {
+  if (IS_TAURI) {
+    const { appDataDir: tauriAppDataDir } = await import('@tauri-apps/api/path');
+    return tauriAppDataDir();
+  } else {
+    // In web mode, return a relative path (actual storage would be server-side)
+    return '/app/data';
+  }
+}
+
+/**
+ * Join path segments
+ * In web mode, uses simple string concatenation with forward slashes
+ */
+export async function joinPath(...paths: string[]): Promise<string> {
+  if (IS_TAURI) {
+    const { join: tauriJoin } = await import('@tauri-apps/api/path');
+    return tauriJoin(...paths);
+  } else {
+    // In web mode, use forward slash path joining
+    return paths.map(p => p.replace(/^\/+|\/+$/g, '')).join('/');
+  }
+}
+
+// ============================================================================
+// HTTP FETCH (Tauri plugin-http / Web native fetch)
+// ============================================================================
+
+/**
+ * Unified fetch function that uses Tauri's HTTP plugin in desktop mode
+ * and native fetch in web mode
+ */
+export async function tauriFetch(
+  url: string | URL | Request,
+  options?: RequestInit
+): Promise<Response> {
+  if (IS_TAURI) {
+    const { fetch: pluginFetch } = await import('@tauri-apps/plugin-http');
+    return pluginFetch(url, options);
+  } else {
+    // In web mode, use native fetch
+    return fetch(url, options);
+  }
+}
+
+// ============================================================================
+// SHELL UTILITIES (Tauri plugin-shell / Web fallback)
+// ============================================================================
+
+/**
+ * Open a URL or path in the default application
+ */
+export async function shellOpen(path: string): Promise<void> {
+  if (IS_TAURI) {
+    const { open } = await import('@tauri-apps/plugin-shell');
+    return open(path);
+  } else {
+    // In web mode, open in new tab
+    window.open(path, '_blank');
+  }
+}
+
+// ============================================================================
+// URL OPENER (Tauri plugin-opener / Web fallback)
+// ============================================================================
+
+/**
+ * Open a URL in the default browser
+ */
+export async function openUrl(url: string): Promise<void> {
+  if (IS_TAURI) {
+    const { openUrl: tauriOpenUrl } = await import('@tauri-apps/plugin-opener');
+    return tauriOpenUrl(url);
+  } else {
+    // In web mode, open in new tab
+    window.open(url, '_blank');
+  }
+}
+
+// ============================================================================
+// EVENT EMIT (Tauri event API / Web fallback)
+// ============================================================================
+
+/**
+ * Emit an event (for Tauri internal communication)
+ */
+export async function emit(event: string, payload?: unknown): Promise<void> {
+  if (IS_TAURI) {
+    const { emit: tauriEmit } = await import('@tauri-apps/api/event');
+    return tauriEmit(event, payload);
+  } else {
+    // In web mode, no-op (use WebSocket for real-time communication)
+    console.warn(`[Web Mode] Event emit for '${event}' is not available.`);
+  }
+}
+
+// ============================================================================
+// FILE DIALOG (Tauri plugin-dialog / Web fallback)
+// ============================================================================
+
+export interface DialogFilter {
+  name: string;
+  extensions: string[];
+}
+
+export interface OpenDialogOptions {
+  multiple?: boolean;
+  directory?: boolean;
+  filters?: DialogFilter[];
+  defaultPath?: string;
+  title?: string;
+}
+
+export interface SaveDialogOptions {
+  filters?: DialogFilter[];
+  defaultPath?: string;
+  title?: string;
+}
+
+/**
+ * Open a file dialog to select files
+ */
+export async function openDialog(options?: OpenDialogOptions): Promise<string | string[] | null> {
+  if (IS_TAURI) {
+    const { open } = await import('@tauri-apps/plugin-dialog');
+    return open(options);
+  } else {
+    // In web mode, use HTML file input
+    return new Promise((resolve) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.multiple = options?.multiple ?? false;
+      if (options?.filters?.length) {
+        input.accept = options.filters.flatMap(f => f.extensions.map(e => `.${e}`)).join(',');
+      }
+      input.onchange = () => {
+        if (input.files?.length) {
+          const files = Array.from(input.files).map(f => f.name);
+          resolve(options?.multiple ? files : files[0]);
+        } else {
+          resolve(null);
+        }
+      };
+      input.click();
+    });
+  }
+}
+
+/**
+ * Open a save file dialog
+ */
+export async function saveDialog(options?: SaveDialogOptions): Promise<string | null> {
+  if (IS_TAURI) {
+    const { save } = await import('@tauri-apps/plugin-dialog');
+    return save(options);
+  } else {
+    // In web mode, return a default filename (actual save will be handled via download)
+    console.warn('[Web Mode] Save dialog not available, returning default path');
+    return options?.defaultPath || 'download';
+  }
+}
+
+// ============================================================================
+// FILE SYSTEM (Tauri plugin-fs / Web fallback)
+// ============================================================================
+
+export enum BaseDirectory {
+  AppCache = 16,
+  AppConfig = 13,
+  AppData = 14,
+  AppLocalData = 15,
+  AppLog = 17,
+  Audio = 1,
+  Cache = 2,
+  Config = 3,
+  Data = 4,
+  Desktop = 6,
+  Document = 7,
+  Download = 8,
+  Executable = 23,
+  Font = 9,
+  Home = 10,
+  LocalData = 5,
+  Log = 24,
+  Picture = 11,
+  Public = 12,
+  Resource = 18,
+  Runtime = 22,
+  Temp = 19,
+  Template = 20,
+  Video = 21,
+}
+
+export interface FsOptions {
+  baseDir?: BaseDirectory;
+}
+
+/**
+ * Read a text file
+ */
+export async function readTextFile(path: string, options?: FsOptions): Promise<string> {
+  if (IS_TAURI) {
+    const { readTextFile: tauriReadTextFile } = await import('@tauri-apps/plugin-fs');
+    return tauriReadTextFile(path, options);
+  } else {
+    // In web mode, throw error (file system not available)
+    throw new Error('[Web Mode] File system operations are not available. Use server-side APIs.');
+  }
+}
+
+/**
+ * Write a text file
+ */
+export async function writeTextFile(path: string, contents: string, options?: FsOptions): Promise<void> {
+  if (IS_TAURI) {
+    const { writeTextFile: tauriWriteTextFile } = await import('@tauri-apps/plugin-fs');
+    return tauriWriteTextFile(path, contents, options);
+  } else {
+    // In web mode, throw error (file system not available)
+    throw new Error('[Web Mode] File system operations are not available. Use server-side APIs.');
+  }
+}
+
+/**
+ * Read a binary file
+ */
+export async function readFile(path: string, options?: FsOptions): Promise<Uint8Array> {
+  if (IS_TAURI) {
+    const { readFile: tauriReadFile } = await import('@tauri-apps/plugin-fs');
+    return tauriReadFile(path, options);
+  } else {
+    throw new Error('[Web Mode] File system operations are not available. Use server-side APIs.');
+  }
+}
+
+/**
+ * Write a binary file
+ */
+export async function writeFile(path: string, contents: Uint8Array, options?: FsOptions): Promise<void> {
+  if (IS_TAURI) {
+    const { writeFile: tauriWriteFile } = await import('@tauri-apps/plugin-fs');
+    return tauriWriteFile(path, contents, options);
+  } else {
+    throw new Error('[Web Mode] File system operations are not available. Use server-side APIs.');
+  }
+}
+
+/**
+ * Create a directory
+ */
+export async function mkdir(path: string, options?: FsOptions & { recursive?: boolean }): Promise<void> {
+  if (IS_TAURI) {
+    const { mkdir: tauriMkdir } = await import('@tauri-apps/plugin-fs');
+    return tauriMkdir(path, options);
+  } else {
+    throw new Error('[Web Mode] File system operations are not available. Use server-side APIs.');
+  }
+}
+
+// ============================================================================
+// AUTO UPDATER (Tauri plugin-updater / Web fallback)
+// ============================================================================
+
+export interface UpdateInfo {
+  version: string;
+  date?: string;
+  body?: string;
+}
+
+/**
+ * Check for updates
+ */
+export async function checkForUpdates(): Promise<UpdateInfo | null> {
+  if (IS_TAURI) {
+    const { check } = await import('@tauri-apps/plugin-updater');
+    const update = await check();
+    if (update) {
+      return {
+        version: update.version,
+        date: update.date,
+        body: update.body,
+      };
+    }
+    return null;
+  } else {
+    // In web mode, no auto-update needed
+    console.warn('[Web Mode] Auto-updater not available in web mode.');
+    return null;
+  }
+}
+
+/**
+ * Relaunch the application
+ */
+export async function relaunch(): Promise<void> {
+  if (IS_TAURI) {
+    const { relaunch: tauriRelaunch } = await import('@tauri-apps/plugin-process');
+    return tauriRelaunch();
+  } else {
+    // In web mode, reload the page
+    window.location.reload();
+  }
+}
+
 // Export for backward compatibility
 export default invoke;

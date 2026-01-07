@@ -1,8 +1,8 @@
 // LLM API Integration Service
 // Unified interface for different LLM providers with streaming support
 
-import { fetch } from '@tauri-apps/plugin-http';
-import { invoke } from '@tauri-apps/api/core';
+import { tauriFetch as fetch } from '@/services/invoke';
+import { invoke } from '@/services/invoke';
 import { llmLogger } from './loggerService';
 
 export interface LLMConfig {

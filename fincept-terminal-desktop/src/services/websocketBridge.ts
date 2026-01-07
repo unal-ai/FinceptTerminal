@@ -1,8 +1,7 @@
 // WebSocket Bridge - TypeScript wrapper for Rust WebSocket system
 // Provides a clean API for frontend components to use Rust WebSocket backend
 
-import { invoke } from '@tauri-apps/api/core';
-import { listen, UnlistenFn } from '@tauri-apps/api/event';
+import { invoke, listen, UnlistenFn } from '@/services/invoke';
 
 // ============================================================================
 // TYPES (matching Rust types)

@@ -2,7 +2,7 @@
 // Fetches real-time news from 20+ financial RSS feeds
 // NOW POWERED BY RUST BACKEND - 95% faster than JavaScript implementation
 
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/services/invoke';
 
 export interface NewsArticle {
   id: string;

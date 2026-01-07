@@ -3,7 +3,7 @@
  * Provides comprehensive performance statistics, risk metrics, and drawdown analysis
  */
 
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/services/invoke';
 
 // ============================================================================
 // TYPE DEFINITIONS

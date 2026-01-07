@@ -1,7 +1,7 @@
 // File: src/services/forumApi.ts
 // Forum API service for handling all forum-related API calls
 
-import { fetch } from '@tauri-apps/plugin-http';
+import { tauriFetch as fetch } from '@/services/invoke';
 
 // API Configuration - matches your existing auth setup
 const API_CONFIG = {

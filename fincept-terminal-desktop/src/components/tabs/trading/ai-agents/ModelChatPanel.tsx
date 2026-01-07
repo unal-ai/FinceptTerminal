@@ -77,7 +77,7 @@ export function ModelChatPanel({ teamId, refreshInterval = 5000 }: ModelChatPane
   const fetchDecisions = async () => {
     try {
       setIsLoading(true);
-      const { invoke } = await import('@tauri-apps/api/core');
+      const { invoke } = await import('@/services/invoke');
       const response = await invoke('agno_get_recent_decisions', { limit: 100 });
       const data = JSON.parse(response as string);
 

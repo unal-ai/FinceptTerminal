@@ -1,7 +1,7 @@
 // Market Data Service - TypeScript wrapper for Tauri market data commands
 // Modular design: gracefully handles failures and can be extended with other data sources
 
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/services/invoke';
 import { sqliteService } from './sqliteService';
 import { marketDataLogger } from './loggerService';
 

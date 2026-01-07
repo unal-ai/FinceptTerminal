@@ -1,7 +1,7 @@
 // Fyers Market Data Module
 // Handles quotes, market depth, historical data, and symbol search
 
-import { fetch } from '@tauri-apps/plugin-http';
+import { tauriFetch as fetch } from '@/services/invoke';
 import { FyersQuote, FyersMarketDepth, FyersMarketStatus, SymbolMasterEntry } from './types';
 
 export class FyersMarket {

@@ -3,7 +3,7 @@
  * Handles autonomous factor mining, model optimization, and research automation
  */
 
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/services/invoke';
 
 export interface RDAgentCapabilities {
   factor_mining: {

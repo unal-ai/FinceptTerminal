@@ -1153,12 +1153,8 @@ const NewsTab: React.FC = () => {
                     </span>
                     <button
                       onClick={async () => {
-                        if (window.__TAURI__) {
-                          const { openUrl } = await import('@tauri-apps/plugin-opener');
-                          await openUrl(selectedArticle.link!);
-                        } else {
-                          window.open(selectedArticle.link, '_blank');
-                        }
+                        const { openUrl } = await import('@/services/invoke');
+                        await openUrl(selectedArticle.link!);
                       }}
                       style={{
                         backgroundColor: colors.info,
@@ -1389,18 +1385,8 @@ const NewsTab: React.FC = () => {
                           }
 
                           try {
-                            if (window.__TAURI__) {
-                              const { openUrl } = await import('@tauri-apps/plugin-opener');
-                              await openUrl(link);
-                            } else {
-                              const a = document.createElement('a');
-                              a.href = link;
-                              a.target = '_blank';
-                              a.rel = 'noopener noreferrer';
-                              document.body.appendChild(a);
-                              a.click();
-                              document.body.removeChild(a);
-                            }
+                            const { openUrl } = await import('@/services/invoke');
+                            await openUrl(link);
                           } catch (error) {
                             await navigator.clipboard.writeText(link);
                           }

@@ -1,5 +1,5 @@
 // Active Management Service - Portfolio Active Management Analytics
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/services/invoke';
 
 // ==================== TYPES ====================
 

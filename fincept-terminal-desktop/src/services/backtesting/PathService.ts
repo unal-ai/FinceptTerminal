@@ -1,10 +1,10 @@
 /**
  * Path Service
  * Provides OS-specific paths for backtesting data storage
- * Uses Tauri's path API to ensure correct app data directories
+ * Uses unified invoke service for cross-platform path handling
  */
 
-import { appDataDir, join } from '@tauri-apps/api/path';
+import { appDataDir, joinPath } from '@/services/invoke';
 
 export class PathService {
   private static appDataPath: string | null = null;
@@ -27,7 +27,7 @@ export class PathService {
    */
   static async getLeanBaseDir(): Promise<string> {
     const appData = await this.getAppDataDir();
-    return await join(appData, 'Fincept', 'Lean');
+    return await joinPath(appData, 'Fincept', 'Lean');
   }
 
   /**
@@ -35,7 +35,7 @@ export class PathService {
    */
   static async getLeanProjectsDir(): Promise<string> {
     const baseDir = await this.getLeanBaseDir();
-    return await join(baseDir, 'projects');
+    return await joinPath(baseDir, 'projects');
   }
 
   /**
@@ -43,7 +43,7 @@ export class PathService {
    */
   static async getLeanDataDir(): Promise<string> {
     const baseDir = await this.getLeanBaseDir();
-    return await join(baseDir, 'data');
+    return await joinPath(baseDir, 'data');
   }
 
   /**
@@ -51,7 +51,7 @@ export class PathService {
    */
   static async getLeanResultsDir(): Promise<string> {
     const baseDir = await this.getLeanBaseDir();
-    return await join(baseDir, 'results');
+    return await joinPath(baseDir, 'results');
   }
 
   /**

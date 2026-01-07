@@ -1,7 +1,7 @@
 // File: src/services/paymentApi.ts
 // Payment API service for handling all payment-related API calls with in-app payment window support
 
-import { fetch } from '@tauri-apps/plugin-http';
+import { tauriFetch as fetch } from '@/services/invoke';
 
 // API Configuration
 const PAYMENT_API_CONFIG = {

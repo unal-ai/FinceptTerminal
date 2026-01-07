@@ -1,7 +1,7 @@
 // File: src/services/marketplaceApi.tsx
 // Marketplace API service for handling all marketplace-related API calls
 
-import { fetch } from '@tauri-apps/plugin-http';
+import { tauriFetch as fetch } from '@/services/invoke';
 
 // API Configuration
 const API_CONFIG = {

@@ -196,9 +196,9 @@ const handleSelectPlan = async () => {
         // Store order_id in localStorage for payment processing screen
         localStorage.setItem('pending_payment_order_id', result.data.payment_uuid);
 
-        // Open in external browser using Tauri shell
-        const { open } = await import('@tauri-apps/plugin-shell');
-        await open(checkoutUrl);
+        // Open in external browser using unified service
+        const { shellOpen } = await import('@/services/invoke');
+        await shellOpen(checkoutUrl);
 
         // Navigate to payment processing screen which will poll for status
         onNavigate('paymentProcessing' as Screen);

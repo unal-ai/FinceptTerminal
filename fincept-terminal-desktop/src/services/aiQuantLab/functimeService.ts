@@ -3,7 +3,7 @@
  * Provides ML-based forecasting, preprocessing, cross-validation, and metrics
  */
 
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/services/invoke';
 
 // ============================================================================
 // TYPE DEFINITIONS

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/services/invoke';
 import { TrendingUp, BarChart3, PieChart, LineChart, Target, Shield, Calculator, Download } from 'lucide-react';
 import { PortfolioSummary } from '../../../../services/portfolioService';
 import { LineChart as RechartsLine, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Scatter, ScatterChart, ZAxis } from 'recharts';

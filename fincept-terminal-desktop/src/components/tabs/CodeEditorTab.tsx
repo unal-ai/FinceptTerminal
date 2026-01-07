@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Play, Save, FileText, Plus, X, RefreshCw, Terminal as TerminalIcon, Download, Upload, Trash2, ChevronUp, ChevronDown, Package, History, Search, Clock, Folder } from 'lucide-react';
-import { invoke } from '@tauri-apps/api/core';
-import { open, save } from '@tauri-apps/plugin-dialog';
+import { invoke } from '@/services/invoke';
+import { openDialog as open, saveDialog as save } from '@/services/invoke';
 import { notebookService } from '@/services/notebookService';
 import { useTerminalTheme } from '@/contexts/ThemeContext';
 import { TabFooter } from '@/components/common/TabFooter';
