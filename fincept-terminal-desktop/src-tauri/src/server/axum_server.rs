@@ -11,7 +11,7 @@
 
 use axum::{
     extract::State,
-    http::{HeaderValue, Method, StatusCode},
+    http::Method,
     response::IntoResponse,
     routing::{get, post},
     Json, Router,
@@ -20,12 +20,11 @@ use std::sync::Arc;
 use std::time::Instant;
 use tower_http::cors::{Any, CorsLayer};
 
-use super::rpc::{dispatch, AppState};
+use super::rpc::dispatch;
 use super::types::{HealthResponse, RpcRequest, RpcResponse, ServerConfig};
 
 /// Server state with startup time for uptime tracking
 pub struct ServerState {
-    pub app_state: AppState,
     pub start_time: Instant,
     pub config: ServerConfig,
 }
@@ -35,34 +34,7 @@ pub async fn run_server(config: ServerConfig) -> Result<(), Box<dyn std::error::
     // Initialize the database
     crate::database::initialize().await?;
 
-    // Create application state
-    let app_state = AppState {
-        mcp_state: Arc::new(tokio::sync::RwLock::new(crate::MCPState {
-            processes: std::sync::Mutex::new(std::collections::HashMap::new()),
-        })),
-        ws_state: Arc::new(tokio::sync::RwLock::new(crate::WebSocketState {
-            manager: Arc::new(tokio::sync::RwLock::new(
-                crate::websocket::WebSocketManager::new(
-                    Arc::new(tokio::sync::RwLock::new(crate::websocket::MessageRouter::new()))
-                )
-            )),
-            router: Arc::new(tokio::sync::RwLock::new(crate::websocket::MessageRouter::new())),
-            services: Arc::new(tokio::sync::RwLock::new(crate::WebSocketServices {
-                paper_trading: crate::websocket::services::PaperTradingService::new(),
-                arbitrage: crate::websocket::services::ArbitrageService::new(),
-                portfolio: crate::websocket::services::PortfolioService::new(),
-                monitoring: crate::websocket::services::MonitoringService::default(),
-            })),
-        })),
-        barter_state: Arc::new(tokio::sync::RwLock::new(
-            crate::barter_integration::commands::BarterState::new(
-                crate::barter_integration::types::TradingMode::Paper
-            )
-        )),
-    };
-
     let server_state = Arc::new(ServerState {
-        app_state,
         start_time: Instant::now(),
         config: config.clone(),
     });
@@ -103,10 +75,9 @@ pub async fn run_server(config: ServerConfig) -> Result<(), Box<dyn std::error::
 /// RPC endpoint handler
 /// Accepts JSON-RPC style requests and dispatches to command handlers
 async fn rpc_handler(
-    State(state): State<Arc<ServerState>>,
     Json(request): Json<RpcRequest>,
 ) -> impl IntoResponse {
-    let response = dispatch(request, &state.app_state).await;
+    let response = dispatch(request).await;
     Json(response)
 }
 
@@ -157,6 +128,18 @@ async fn index_handler() -> impl IntoResponse {
         <p>Health check endpoint. Returns server status and uptime.</p>
     </div>
     
+    <h2>Available Commands</h2>
+    <ul>
+        <li><code>greet</code> - Test endpoint</li>
+        <li><code>get_market_quote</code> - Get real-time stock quote</li>
+        <li><code>get_market_quotes</code> - Get multiple stock quotes</li>
+        <li><code>get_historical_data</code> - Get historical price data</li>
+        <li><code>get_stock_info</code> - Get company information</li>
+        <li><code>get_financials</code> - Get financial statements</li>
+        <li><code>db_check_health</code> - Check database status</li>
+        <li><code>sha256_hash</code> - Compute SHA256 hash</li>
+    </ul>
+    
     <h2>Example Commands</h2>
     
     <h3>Get Market Quote</h3>
@@ -179,19 +162,5 @@ async fn index_handler() -> impl IntoResponse {
 </html>
 "#;
 
-    (StatusCode::OK, [("content-type", "text/html")], html)
-}
-
-/// Main entry point for the web server binary
-#[cfg(feature = "web")]
-pub fn main() {
-    let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
-    
-    rt.block_on(async {
-        let config = ServerConfig::default();
-        if let Err(e) = run_server(config).await {
-            eprintln!("Server error: {}", e);
-            std::process::exit(1);
-        }
-    });
+    (axum::http::StatusCode::OK, [("content-type", "text/html")], html)
 }

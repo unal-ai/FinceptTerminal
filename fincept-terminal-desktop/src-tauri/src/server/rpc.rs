@@ -4,21 +4,12 @@
 
 use super::types::{RpcRequest, RpcResponse};
 use serde_json::Value;
-use std::sync::Arc;
-
-/// Application state for the web server
-/// This replaces Tauri's managed state system
-pub struct AppState {
-    pub mcp_state: Arc<tokio::sync::RwLock<crate::MCPState>>,
-    pub ws_state: Arc<tokio::sync::RwLock<crate::WebSocketState>>,
-    pub barter_state: Arc<tokio::sync::RwLock<crate::barter_integration::commands::BarterState>>,
-}
 
 /// Dispatch an RPC request to the appropriate command handler
 /// 
 /// This function acts as the central router, mapping command names to their
 /// implementations. It mirrors the behavior of Tauri's invoke_handler macro.
-pub async fn dispatch(request: RpcRequest, _state: &AppState) -> RpcResponse {
+pub async fn dispatch(request: RpcRequest) -> RpcResponse {
     let args = request.args;
     
     match request.cmd.as_str() {
@@ -63,102 +54,6 @@ pub async fn dispatch(request: RpcRequest, _state: &AppState) -> RpcResponse {
         "db_check_health" => {
             dispatch_db_health().await
         }
-        "db_get_all_settings" => {
-            dispatch_db_get_all_settings().await
-        }
-        "db_get_setting" => {
-            dispatch_db_get_setting(args).await
-        }
-        "db_save_setting" => {
-            dispatch_db_save_setting(args).await
-        }
-
-        // ============================================================================
-        // WATCHLIST COMMANDS
-        // ============================================================================
-        "db_get_watchlists" => {
-            dispatch_db_get_watchlists().await
-        }
-        "db_create_watchlist" => {
-            dispatch_db_create_watchlist(args).await
-        }
-        "db_get_watchlist_stocks" => {
-            dispatch_db_get_watchlist_stocks(args).await
-        }
-        "db_add_watchlist_stock" => {
-            dispatch_db_add_watchlist_stock(args).await
-        }
-        "db_remove_watchlist_stock" => {
-            dispatch_db_remove_watchlist_stock(args).await
-        }
-        "db_delete_watchlist" => {
-            dispatch_db_delete_watchlist(args).await
-        }
-
-        // ============================================================================
-        // CREDENTIAL COMMANDS
-        // ============================================================================
-        "db_get_credentials" => {
-            dispatch_db_get_credentials().await
-        }
-        "db_save_credential" => {
-            dispatch_db_save_credential(args).await
-        }
-        "db_delete_credential" => {
-            dispatch_db_delete_credential(args).await
-        }
-
-        // ============================================================================
-        // LLM CONFIG COMMANDS
-        // ============================================================================
-        "db_get_llm_configs" => {
-            dispatch_db_get_llm_configs().await
-        }
-        "db_save_llm_config" => {
-            dispatch_db_save_llm_config(args).await
-        }
-        "db_get_llm_global_settings" => {
-            dispatch_db_get_llm_global_settings().await
-        }
-        "db_save_llm_global_settings" => {
-            dispatch_db_save_llm_global_settings(args).await
-        }
-
-        // ============================================================================
-        // DATA SOURCE COMMANDS
-        // ============================================================================
-        "db_get_all_data_sources" => {
-            dispatch_db_get_all_data_sources().await
-        }
-        "db_save_data_source" => {
-            dispatch_db_save_data_source(args).await
-        }
-        "db_delete_data_source" => {
-            dispatch_db_delete_data_source(args).await
-        }
-
-        // ============================================================================
-        // PYTHON EXECUTION COMMANDS
-        // ============================================================================
-        "execute_yfinance_command" => {
-            dispatch_execute_python_command("yfinance", args).await
-        }
-        "execute_polygon_command" => {
-            dispatch_execute_python_command("polygon", args).await
-        }
-        "execute_fred_command" => {
-            dispatch_execute_python_command("fred", args).await
-        }
-
-        // ============================================================================
-        // NEWS COMMANDS
-        // ============================================================================
-        "fetch_all_rss_news" => {
-            dispatch_fetch_rss_news(args).await
-        }
-        "get_rss_feed_count" => {
-            dispatch_get_rss_feed_count().await
-        }
 
         // ============================================================================
         // SETUP & UTILITY COMMANDS
@@ -185,7 +80,10 @@ pub async fn dispatch(request: RpcRequest, _state: &AppState) -> RpcResponse {
             // return a helpful error message
             RpcResponse::err(format!(
                 "Command '{}' is not yet available in web mode. \
-                This command may only be available in the desktop application.",
+                This command may only be available in the desktop application. \
+                Available commands: greet, get_market_quote, get_market_quotes, \
+                get_period_returns, check_market_data_health, get_historical_data, \
+                get_stock_info, get_financials, db_check_health, check_setup_status, sha256_hash",
                 request.cmd
             ))
         }
@@ -202,7 +100,7 @@ async fn dispatch_market_quote(args: Value) -> RpcResponse {
         None => return RpcResponse::err("Missing 'symbol' parameter"),
     };
 
-    // Use the data source directly (without Tauri app handle)
+    // Use the web-compatible data source
     match crate::data_sources::yfinance::YFinanceProviderWeb::get_quote(&symbol).await {
         Ok(quote) => RpcResponse::ok(quote),
         Err(e) => RpcResponse::err(e),
@@ -255,10 +153,7 @@ async fn dispatch_historical_data(args: Value) -> RpcResponse {
         .to_string();
 
     match crate::data_sources::yfinance::YFinanceProviderWeb::get_historical(&symbol, &start_date, &end_date).await {
-        Ok(data) => RpcResponse::ok(serde_json::json!({
-            "success": true,
-            "data": data
-        })),
+        Ok(data) => RpcResponse::ok(data),
         Err(e) => RpcResponse::err(e),
     }
 }
@@ -304,249 +199,6 @@ async fn dispatch_db_health() -> RpcResponse {
         }
         Err(e) => RpcResponse::err(format!("Database pool error: {}", e)),
     }
-}
-
-async fn dispatch_db_get_all_settings() -> RpcResponse {
-    match crate::database::settings::get_all_settings() {
-        Ok(settings) => RpcResponse::ok(settings),
-        Err(e) => RpcResponse::err(e.to_string()),
-    }
-}
-
-async fn dispatch_db_get_setting(args: Value) -> RpcResponse {
-    let key = match args.get("key").and_then(|v| v.as_str()) {
-        Some(k) => k.to_string(),
-        None => return RpcResponse::err("Missing 'key' parameter"),
-    };
-
-    match crate::database::settings::get_setting(&key) {
-        Ok(value) => RpcResponse::ok(value),
-        Err(e) => RpcResponse::err(e.to_string()),
-    }
-}
-
-async fn dispatch_db_save_setting(args: Value) -> RpcResponse {
-    let key = match args.get("key").and_then(|v| v.as_str()) {
-        Some(k) => k.to_string(),
-        None => return RpcResponse::err("Missing 'key' parameter"),
-    };
-    let value = match args.get("value").and_then(|v| v.as_str()) {
-        Some(v) => v.to_string(),
-        None => return RpcResponse::err("Missing 'value' parameter"),
-    };
-
-    match crate::database::settings::save_setting(&key, &value) {
-        Ok(_) => RpcResponse::ok(serde_json::json!({"saved": true})),
-        Err(e) => RpcResponse::err(e.to_string()),
-    }
-}
-
-async fn dispatch_db_get_watchlists() -> RpcResponse {
-    match crate::database::watchlists::get_watchlists() {
-        Ok(watchlists) => RpcResponse::ok(watchlists),
-        Err(e) => RpcResponse::err(e.to_string()),
-    }
-}
-
-async fn dispatch_db_create_watchlist(args: Value) -> RpcResponse {
-    let name = match args.get("name").and_then(|v| v.as_str()) {
-        Some(n) => n.to_string(),
-        None => return RpcResponse::err("Missing 'name' parameter"),
-    };
-    let description = args.get("description")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
-
-    match crate::database::watchlists::create_watchlist(&name, description.as_deref()) {
-        Ok(id) => RpcResponse::ok(serde_json::json!({"id": id})),
-        Err(e) => RpcResponse::err(e.to_string()),
-    }
-}
-
-async fn dispatch_db_get_watchlist_stocks(args: Value) -> RpcResponse {
-    let watchlist_id = match args.get("watchlistId").or(args.get("watchlist_id")) {
-        Some(v) => v.as_i64().unwrap_or(0) as i32,
-        None => return RpcResponse::err("Missing 'watchlistId' parameter"),
-    };
-
-    match crate::database::watchlists::get_watchlist_stocks(watchlist_id) {
-        Ok(stocks) => RpcResponse::ok(stocks),
-        Err(e) => RpcResponse::err(e.to_string()),
-    }
-}
-
-async fn dispatch_db_add_watchlist_stock(args: Value) -> RpcResponse {
-    let watchlist_id = match args.get("watchlistId").or(args.get("watchlist_id")) {
-        Some(v) => v.as_i64().unwrap_or(0) as i32,
-        None => return RpcResponse::err("Missing 'watchlistId' parameter"),
-    };
-    let symbol = match args.get("symbol").and_then(|v| v.as_str()) {
-        Some(s) => s.to_string(),
-        None => return RpcResponse::err("Missing 'symbol' parameter"),
-    };
-    let name = args.get("name").and_then(|v| v.as_str()).map(|s| s.to_string());
-
-    match crate::database::watchlists::add_watchlist_stock(watchlist_id, &symbol, name.as_deref()) {
-        Ok(_) => RpcResponse::ok(serde_json::json!({"added": true})),
-        Err(e) => RpcResponse::err(e.to_string()),
-    }
-}
-
-async fn dispatch_db_remove_watchlist_stock(args: Value) -> RpcResponse {
-    let watchlist_id = match args.get("watchlistId").or(args.get("watchlist_id")) {
-        Some(v) => v.as_i64().unwrap_or(0) as i32,
-        None => return RpcResponse::err("Missing 'watchlistId' parameter"),
-    };
-    let symbol = match args.get("symbol").and_then(|v| v.as_str()) {
-        Some(s) => s.to_string(),
-        None => return RpcResponse::err("Missing 'symbol' parameter"),
-    };
-
-    match crate::database::watchlists::remove_watchlist_stock(watchlist_id, &symbol) {
-        Ok(_) => RpcResponse::ok(serde_json::json!({"removed": true})),
-        Err(e) => RpcResponse::err(e.to_string()),
-    }
-}
-
-async fn dispatch_db_delete_watchlist(args: Value) -> RpcResponse {
-    let id = match args.get("id") {
-        Some(v) => v.as_i64().unwrap_or(0) as i32,
-        None => return RpcResponse::err("Missing 'id' parameter"),
-    };
-
-    match crate::database::watchlists::delete_watchlist(id) {
-        Ok(_) => RpcResponse::ok(serde_json::json!({"deleted": true})),
-        Err(e) => RpcResponse::err(e.to_string()),
-    }
-}
-
-async fn dispatch_db_get_credentials() -> RpcResponse {
-    match crate::database::credentials::get_all_credentials() {
-        Ok(creds) => RpcResponse::ok(creds),
-        Err(e) => RpcResponse::err(e.to_string()),
-    }
-}
-
-async fn dispatch_db_save_credential(args: Value) -> RpcResponse {
-    let service = match args.get("service").and_then(|v| v.as_str()) {
-        Some(s) => s.to_string(),
-        None => return RpcResponse::err("Missing 'service' parameter"),
-    };
-    let api_key = args.get("apiKey").or(args.get("api_key"))
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
-    let api_secret = args.get("apiSecret").or(args.get("api_secret"))
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
-
-    match crate::database::credentials::save_credential(&service, api_key.as_deref(), api_secret.as_deref()) {
-        Ok(_) => RpcResponse::ok(serde_json::json!({"saved": true})),
-        Err(e) => RpcResponse::err(e.to_string()),
-    }
-}
-
-async fn dispatch_db_delete_credential(args: Value) -> RpcResponse {
-    let service = match args.get("service").and_then(|v| v.as_str()) {
-        Some(s) => s.to_string(),
-        None => return RpcResponse::err("Missing 'service' parameter"),
-    };
-
-    match crate::database::credentials::delete_credential(&service) {
-        Ok(_) => RpcResponse::ok(serde_json::json!({"deleted": true})),
-        Err(e) => RpcResponse::err(e.to_string()),
-    }
-}
-
-async fn dispatch_db_get_llm_configs() -> RpcResponse {
-    match crate::database::llm::get_llm_configs() {
-        Ok(configs) => RpcResponse::ok(configs),
-        Err(e) => RpcResponse::err(e.to_string()),
-    }
-}
-
-async fn dispatch_db_save_llm_config(args: Value) -> RpcResponse {
-    match crate::database::llm::save_llm_config(args) {
-        Ok(_) => RpcResponse::ok(serde_json::json!({"saved": true})),
-        Err(e) => RpcResponse::err(e.to_string()),
-    }
-}
-
-async fn dispatch_db_get_llm_global_settings() -> RpcResponse {
-    match crate::database::llm::get_global_settings() {
-        Ok(settings) => RpcResponse::ok(settings),
-        Err(e) => RpcResponse::err(e.to_string()),
-    }
-}
-
-async fn dispatch_db_save_llm_global_settings(args: Value) -> RpcResponse {
-    match crate::database::llm::save_global_settings(args) {
-        Ok(_) => RpcResponse::ok(serde_json::json!({"saved": true})),
-        Err(e) => RpcResponse::err(e.to_string()),
-    }
-}
-
-async fn dispatch_db_get_all_data_sources() -> RpcResponse {
-    match crate::database::data_sources::get_all_data_sources() {
-        Ok(sources) => RpcResponse::ok(sources),
-        Err(e) => RpcResponse::err(e.to_string()),
-    }
-}
-
-async fn dispatch_db_save_data_source(args: Value) -> RpcResponse {
-    match crate::database::data_sources::save_data_source(args) {
-        Ok(_) => RpcResponse::ok(serde_json::json!({"saved": true})),
-        Err(e) => RpcResponse::err(e.to_string()),
-    }
-}
-
-async fn dispatch_db_delete_data_source(args: Value) -> RpcResponse {
-    let id = match args.get("id").and_then(|v| v.as_str()) {
-        Some(s) => s.to_string(),
-        None => return RpcResponse::err("Missing 'id' parameter"),
-    };
-
-    match crate::database::data_sources::delete_data_source(&id) {
-        Ok(_) => RpcResponse::ok(serde_json::json!({"deleted": true})),
-        Err(e) => RpcResponse::err(e.to_string()),
-    }
-}
-
-// ============================================================================
-// PYTHON COMMAND DISPATCH FUNCTIONS
-// ============================================================================
-
-async fn dispatch_execute_python_command(script_type: &str, args: Value) -> RpcResponse {
-    let command = match args.get("command").and_then(|v| v.as_str()) {
-        Some(c) => c.to_string(),
-        None => return RpcResponse::err("Missing 'command' parameter"),
-    };
-    let params = args.get("params").cloned().unwrap_or(serde_json::json!({}));
-
-    // Execute Python script
-    match crate::utils::python::execute_python_script_web(script_type, &command, &params).await {
-        Ok(result) => RpcResponse::ok(result),
-        Err(e) => RpcResponse::err(e),
-    }
-}
-
-// ============================================================================
-// NEWS DISPATCH FUNCTIONS
-// ============================================================================
-
-async fn dispatch_fetch_rss_news(args: Value) -> RpcResponse {
-    let sources = args.get("sources")
-        .and_then(|v| serde_json::from_value::<Vec<String>>(v.clone()).ok())
-        .unwrap_or_default();
-    let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(50) as usize;
-
-    match crate::commands::news::fetch_rss_news_web(&sources, limit).await {
-        Ok(news) => RpcResponse::ok(news),
-        Err(e) => RpcResponse::err(e),
-    }
-}
-
-async fn dispatch_get_rss_feed_count() -> RpcResponse {
-    RpcResponse::ok(crate::commands::news::get_rss_feed_count_web())
 }
 
 // ============================================================================
