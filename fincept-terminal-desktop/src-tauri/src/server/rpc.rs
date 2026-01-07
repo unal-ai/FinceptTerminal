@@ -26,41 +26,76 @@ pub async fn dispatch(request: RpcRequest) -> RpcResponse {
         // ============================================================================
         // MARKET DATA COMMANDS
         // ============================================================================
-        "get_market_quote" => {
-            dispatch_market_quote(args).await
-        }
-        "get_market_quotes" => {
-            dispatch_market_quotes(args).await
-        }
-        "get_period_returns" => {
-            dispatch_period_returns(args).await
-        }
-        "check_market_data_health" => {
-            dispatch_market_health().await
-        }
-        "get_historical_data" => {
-            dispatch_historical_data(args).await
-        }
-        "get_stock_info" => {
-            dispatch_stock_info(args).await
-        }
-        "get_financials" => {
-            dispatch_financials(args).await
-        }
+        "get_market_quote" => dispatch_market_quote(args).await,
+        "get_market_quotes" => dispatch_market_quotes(args).await,
+        "get_period_returns" => dispatch_period_returns(args).await,
+        "check_market_data_health" => dispatch_market_health().await,
+        "get_historical_data" => dispatch_historical_data(args).await,
+        "get_stock_info" => dispatch_stock_info(args).await,
+        "get_financials" => dispatch_financials(args).await,
 
         // ============================================================================
-        // DATABASE COMMANDS
+        // DATABASE HEALTH & SETTINGS COMMANDS
         // ============================================================================
-        "db_check_health" => {
-            dispatch_db_health().await
-        }
+        "db_check_health" => dispatch_db_health().await,
+        "db_get_all_settings" => dispatch_db_get_all_settings().await,
+        "db_get_setting" => dispatch_db_get_setting(args).await,
+        "db_save_setting" => dispatch_db_save_setting(args).await,
+
+        // ============================================================================
+        // CREDENTIALS COMMANDS
+        // ============================================================================
+        "db_get_credentials" => dispatch_db_get_credentials().await,
+        "db_save_credential" => dispatch_db_save_credential(args).await,
+        "db_get_credential_by_service" => dispatch_db_get_credential_by_service(args).await,
+        "db_delete_credential" => dispatch_db_delete_credential(args).await,
+
+        // ============================================================================
+        // LLM CONFIG COMMANDS
+        // ============================================================================
+        "db_get_llm_configs" => dispatch_db_get_llm_configs().await,
+        "db_save_llm_config" => dispatch_db_save_llm_config(args).await,
+        "db_get_llm_global_settings" => dispatch_db_get_llm_global_settings().await,
+        "db_save_llm_global_settings" => dispatch_db_save_llm_global_settings(args).await,
+
+        // ============================================================================
+        // CHAT SESSION COMMANDS
+        // ============================================================================
+        "db_create_chat_session" => dispatch_db_create_chat_session(args).await,
+        "db_get_chat_sessions" => dispatch_db_get_chat_sessions(args).await,
+        "db_add_chat_message" => dispatch_db_add_chat_message(args).await,
+        "db_get_chat_messages" => dispatch_db_get_chat_messages(args).await,
+        "db_delete_chat_session" => dispatch_db_delete_chat_session(args).await,
+
+        // ============================================================================
+        // DATA SOURCE COMMANDS
+        // ============================================================================
+        "db_get_all_data_sources" => dispatch_db_get_all_data_sources().await,
+        "db_save_data_source" => dispatch_db_save_data_source(args).await,
+        "db_delete_data_source" => dispatch_db_delete_data_source(args).await,
+
+        // ============================================================================
+        // PORTFOLIO COMMANDS
+        // ============================================================================
+        "db_list_portfolios" => dispatch_db_list_portfolios().await,
+        "db_get_portfolio" => dispatch_db_get_portfolio(args).await,
+        "db_create_portfolio" => dispatch_db_create_portfolio(args).await,
+        "db_delete_portfolio" => dispatch_db_delete_portfolio(args).await,
+
+        // ============================================================================
+        // WATCHLIST COMMANDS
+        // ============================================================================
+        "db_get_watchlists" => dispatch_db_get_watchlists().await,
+        "db_create_watchlist" => dispatch_db_create_watchlist(args).await,
+        "db_get_watchlist_stocks" => dispatch_db_get_watchlist_stocks(args).await,
+        "db_add_watchlist_stock" => dispatch_db_add_watchlist_stock(args).await,
+        "db_remove_watchlist_stock" => dispatch_db_remove_watchlist_stock(args).await,
+        "db_delete_watchlist" => dispatch_db_delete_watchlist(args).await,
 
         // ============================================================================
         // SETUP & UTILITY COMMANDS
         // ============================================================================
-        "check_setup_status" => {
-            dispatch_check_setup_status().await
-        }
+        "check_setup_status" => dispatch_check_setup_status().await,
         "sha256_hash" => {
             let input = args.get("input")
                 .and_then(|v| v.as_str())
@@ -76,14 +111,9 @@ pub async fn dispatch(request: RpcRequest) -> RpcResponse {
         // CATCH-ALL FOR UNIMPLEMENTED COMMANDS
         // ============================================================================
         _ => {
-            // For commands not yet implemented in web server,
-            // return a helpful error message
             RpcResponse::err(format!(
                 "Command '{}' is not yet available in web mode. \
-                This command may only be available in the desktop application. \
-                Available commands: greet, get_market_quote, get_market_quotes, \
-                get_period_returns, check_market_data_health, get_historical_data, \
-                get_stock_info, get_financials, db_check_health, check_setup_status, sha256_hash",
+                See /api/health for available commands.",
                 request.cmd
             ))
         }
@@ -100,7 +130,6 @@ async fn dispatch_market_quote(args: Value) -> RpcResponse {
         None => return RpcResponse::err("Missing 'symbol' parameter"),
     };
 
-    // Use the web-compatible data source
     match crate::data_sources::yfinance::YFinanceProviderWeb::get_quote(&symbol).await {
         Ok(quote) => RpcResponse::ok(quote),
         Err(e) => RpcResponse::err(e),
@@ -183,7 +212,7 @@ async fn dispatch_financials(args: Value) -> RpcResponse {
 }
 
 // ============================================================================
-// DATABASE DISPATCH FUNCTIONS
+// DATABASE HEALTH & SETTINGS DISPATCH FUNCTIONS
 // ============================================================================
 
 async fn dispatch_db_health() -> RpcResponse {
@@ -201,12 +230,362 @@ async fn dispatch_db_health() -> RpcResponse {
     }
 }
 
+async fn dispatch_db_get_all_settings() -> RpcResponse {
+    match crate::database::operations::get_all_settings() {
+        Ok(settings) => RpcResponse::ok(settings),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_get_setting(args: Value) -> RpcResponse {
+    let key = match args.get("key").and_then(|v| v.as_str()) {
+        Some(k) => k.to_string(),
+        None => return RpcResponse::err("Missing 'key' parameter"),
+    };
+
+    match crate::database::operations::get_setting(&key) {
+        Ok(value) => RpcResponse::ok(value),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_save_setting(args: Value) -> RpcResponse {
+    let key = match args.get("key").and_then(|v| v.as_str()) {
+        Some(k) => k.to_string(),
+        None => return RpcResponse::err("Missing 'key' parameter"),
+    };
+    let value = match args.get("value").and_then(|v| v.as_str()) {
+        Some(v) => v.to_string(),
+        None => return RpcResponse::err("Missing 'value' parameter"),
+    };
+    let category = args.get("category").and_then(|v| v.as_str()).map(|s| s.to_string());
+
+    match crate::database::operations::save_setting(&key, &value, category.as_deref()) {
+        Ok(_) => RpcResponse::ok(serde_json::json!({"saved": true})),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+// ============================================================================
+// CREDENTIALS DISPATCH FUNCTIONS
+// ============================================================================
+
+async fn dispatch_db_get_credentials() -> RpcResponse {
+    match crate::database::operations::get_credentials() {
+        Ok(creds) => RpcResponse::ok(creds),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_save_credential(args: Value) -> RpcResponse {
+    let cred: crate::database::types::Credential = match serde_json::from_value(args.clone()) {
+        Ok(c) => c,
+        Err(e) => return RpcResponse::err(format!("Invalid credential data: {}", e)),
+    };
+
+    match crate::database::operations::save_credential(&cred) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_get_credential_by_service(args: Value) -> RpcResponse {
+    let service_name = match args.get("serviceName").or(args.get("service_name")).and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return RpcResponse::err("Missing 'serviceName' parameter"),
+    };
+
+    match crate::database::operations::get_credential_by_service(&service_name) {
+        Ok(cred) => RpcResponse::ok(cred),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_delete_credential(args: Value) -> RpcResponse {
+    let id = match args.get("id").and_then(|v| v.as_i64()) {
+        Some(i) => i,
+        None => return RpcResponse::err("Missing 'id' parameter"),
+    };
+
+    match crate::database::operations::delete_credential(id) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+// ============================================================================
+// LLM CONFIG DISPATCH FUNCTIONS
+// ============================================================================
+
+async fn dispatch_db_get_llm_configs() -> RpcResponse {
+    match crate::database::operations::get_llm_configs() {
+        Ok(configs) => RpcResponse::ok(configs),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_save_llm_config(args: Value) -> RpcResponse {
+    let config: crate::database::types::LLMConfig = match serde_json::from_value(args.clone()) {
+        Ok(c) => c,
+        Err(e) => return RpcResponse::err(format!("Invalid LLM config data: {}", e)),
+    };
+
+    match crate::database::operations::save_llm_config(&config) {
+        Ok(_) => RpcResponse::ok(serde_json::json!({"saved": true})),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_get_llm_global_settings() -> RpcResponse {
+    match crate::database::operations::get_llm_global_settings() {
+        Ok(settings) => RpcResponse::ok(settings),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_save_llm_global_settings(args: Value) -> RpcResponse {
+    let settings: crate::database::types::LLMGlobalSettings = match serde_json::from_value(args.clone()) {
+        Ok(s) => s,
+        Err(e) => return RpcResponse::err(format!("Invalid LLM global settings: {}", e)),
+    };
+
+    match crate::database::operations::save_llm_global_settings(&settings) {
+        Ok(_) => RpcResponse::ok(serde_json::json!({"saved": true})),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+// ============================================================================
+// CHAT SESSION DISPATCH FUNCTIONS
+// ============================================================================
+
+async fn dispatch_db_create_chat_session(args: Value) -> RpcResponse {
+    let title = args.get("title").and_then(|v| v.as_str()).unwrap_or("New Chat").to_string();
+
+    match crate::database::operations::create_chat_session(&title) {
+        Ok(session) => RpcResponse::ok(session),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_get_chat_sessions(args: Value) -> RpcResponse {
+    let limit = args.get("limit").and_then(|v| v.as_i64());
+
+    match crate::database::operations::get_chat_sessions(limit) {
+        Ok(sessions) => RpcResponse::ok(sessions),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_add_chat_message(args: Value) -> RpcResponse {
+    let message: crate::database::types::ChatMessage = match serde_json::from_value(args.clone()) {
+        Ok(m) => m,
+        Err(e) => return RpcResponse::err(format!("Invalid chat message: {}", e)),
+    };
+
+    match crate::database::operations::add_chat_message(&message) {
+        Ok(msg) => RpcResponse::ok(msg),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_get_chat_messages(args: Value) -> RpcResponse {
+    let session_uuid = match args.get("sessionUuid").or(args.get("session_uuid")).and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return RpcResponse::err("Missing 'sessionUuid' parameter"),
+    };
+
+    match crate::database::operations::get_chat_messages(&session_uuid) {
+        Ok(messages) => RpcResponse::ok(messages),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_delete_chat_session(args: Value) -> RpcResponse {
+    let session_uuid = match args.get("sessionUuid").or(args.get("session_uuid")).and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return RpcResponse::err("Missing 'sessionUuid' parameter"),
+    };
+
+    match crate::database::operations::delete_chat_session(&session_uuid) {
+        Ok(_) => RpcResponse::ok(serde_json::json!({"deleted": true})),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+// ============================================================================
+// DATA SOURCE DISPATCH FUNCTIONS
+// ============================================================================
+
+async fn dispatch_db_get_all_data_sources() -> RpcResponse {
+    match crate::database::operations::get_all_data_sources() {
+        Ok(sources) => RpcResponse::ok(sources),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_save_data_source(args: Value) -> RpcResponse {
+    let source: crate::database::types::DataSource = match serde_json::from_value(args.clone()) {
+        Ok(s) => s,
+        Err(e) => return RpcResponse::err(format!("Invalid data source: {}", e)),
+    };
+
+    match crate::database::operations::save_data_source(&source) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_delete_data_source(args: Value) -> RpcResponse {
+    let id = match args.get("id").and_then(|v| v.as_str()) {
+        Some(i) => i.to_string(),
+        None => return RpcResponse::err("Missing 'id' parameter"),
+    };
+
+    match crate::database::operations::delete_data_source(&id) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+// ============================================================================
+// PORTFOLIO DISPATCH FUNCTIONS
+// ============================================================================
+
+async fn dispatch_db_list_portfolios() -> RpcResponse {
+    match crate::database::operations::get_all_portfolios() {
+        Ok(portfolios) => RpcResponse::ok(portfolios),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_get_portfolio(args: Value) -> RpcResponse {
+    let portfolio_id = match args.get("portfolioId").or(args.get("portfolio_id")).and_then(|v| v.as_str()) {
+        Some(i) => i.to_string(),
+        None => return RpcResponse::err("Missing 'portfolioId' parameter"),
+    };
+
+    match crate::database::operations::get_portfolio_by_id(&portfolio_id) {
+        Ok(portfolio) => RpcResponse::ok(portfolio),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_create_portfolio(args: Value) -> RpcResponse {
+    let id = args.get("id").and_then(|v| v.as_str()).unwrap_or(&uuid::Uuid::new_v4().to_string()).to_string();
+    let name = match args.get("name").and_then(|v| v.as_str()) {
+        Some(n) => n.to_string(),
+        None => return RpcResponse::err("Missing 'name' parameter"),
+    };
+    let owner = args.get("owner").and_then(|v| v.as_str()).unwrap_or("default").to_string();
+    let currency = args.get("currency").and_then(|v| v.as_str()).unwrap_or("USD").to_string();
+    let description = args.get("description").and_then(|v| v.as_str()).map(|s| s.to_string());
+
+    match crate::database::operations::create_portfolio(&id, &name, &owner, &currency, description.as_deref()) {
+        Ok(_) => RpcResponse::ok(serde_json::json!({"id": id, "created": true})),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_delete_portfolio(args: Value) -> RpcResponse {
+    let portfolio_id = match args.get("portfolioId").or(args.get("portfolio_id")).and_then(|v| v.as_str()) {
+        Some(i) => i.to_string(),
+        None => return RpcResponse::err("Missing 'portfolioId' parameter"),
+    };
+
+    match crate::database::operations::delete_portfolio(&portfolio_id) {
+        Ok(_) => RpcResponse::ok(serde_json::json!({"deleted": true})),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+// ============================================================================
+// WATCHLIST DISPATCH FUNCTIONS
+// ============================================================================
+
+async fn dispatch_db_get_watchlists() -> RpcResponse {
+    match crate::database::queries::get_watchlists() {
+        Ok(watchlists) => RpcResponse::ok(watchlists),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_create_watchlist(args: Value) -> RpcResponse {
+    let name = match args.get("name").and_then(|v| v.as_str()) {
+        Some(n) => n.to_string(),
+        None => return RpcResponse::err("Missing 'name' parameter"),
+    };
+    let description = args.get("description").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let color = args.get("color").and_then(|v| v.as_str()).unwrap_or("#3b82f6").to_string();
+
+    match crate::database::queries::create_watchlist(&name, description.as_deref(), &color) {
+        Ok(watchlist) => RpcResponse::ok(watchlist),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_get_watchlist_stocks(args: Value) -> RpcResponse {
+    let watchlist_id = match args.get("watchlistId").or(args.get("watchlist_id")).and_then(|v| v.as_str()) {
+        Some(i) => i.to_string(),
+        None => return RpcResponse::err("Missing 'watchlistId' parameter"),
+    };
+
+    match crate::database::queries::get_watchlist_stocks(&watchlist_id) {
+        Ok(stocks) => RpcResponse::ok(stocks),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_add_watchlist_stock(args: Value) -> RpcResponse {
+    let watchlist_id = match args.get("watchlistId").or(args.get("watchlist_id")).and_then(|v| v.as_str()) {
+        Some(i) => i.to_string(),
+        None => return RpcResponse::err("Missing 'watchlistId' parameter"),
+    };
+    let symbol = match args.get("symbol").and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return RpcResponse::err("Missing 'symbol' parameter"),
+    };
+    let notes = args.get("notes").and_then(|v| v.as_str()).map(|s| s.to_string());
+
+    match crate::database::queries::add_watchlist_stock(&watchlist_id, &symbol, notes.as_deref()) {
+        Ok(stock) => RpcResponse::ok(stock),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_remove_watchlist_stock(args: Value) -> RpcResponse {
+    let watchlist_id = match args.get("watchlistId").or(args.get("watchlist_id")).and_then(|v| v.as_str()) {
+        Some(i) => i.to_string(),
+        None => return RpcResponse::err("Missing 'watchlistId' parameter"),
+    };
+    let symbol = match args.get("symbol").and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return RpcResponse::err("Missing 'symbol' parameter"),
+    };
+
+    match crate::database::queries::remove_watchlist_stock(&watchlist_id, &symbol) {
+        Ok(_) => RpcResponse::ok(serde_json::json!({"removed": true})),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_delete_watchlist(args: Value) -> RpcResponse {
+    let watchlist_id = match args.get("watchlistId").or(args.get("watchlist_id")).or(args.get("id")).and_then(|v| v.as_str()) {
+        Some(i) => i.to_string(),
+        None => return RpcResponse::err("Missing 'watchlistId' or 'id' parameter"),
+    };
+
+    match crate::database::queries::delete_watchlist(&watchlist_id) {
+        Ok(_) => RpcResponse::ok(serde_json::json!({"deleted": true})),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
 // ============================================================================
 // SETUP DISPATCH FUNCTIONS
 // ============================================================================
 
 async fn dispatch_check_setup_status() -> RpcResponse {
-    // For web mode, we consider setup complete if the database is initialized
     match crate::database::pool::get_pool() {
         Ok(_) => RpcResponse::ok(serde_json::json!({
             "needs_setup": false,

@@ -88,44 +88,56 @@ export const commands = {
   getFinancials: (symbol: string) =>
     invoke<FinancialsResponse>('get_financials', { symbol }),
   
+  getPeriodReturns: (symbol: string) =>
+    invoke<PeriodReturnsResponse>('get_period_returns', { symbol }),
+  
+  checkMarketDataHealth: () =>
+    invoke<boolean>('check_market_data_health', {}),
+  
   // Database Commands
   dbCheckHealth: () =>
     invoke<HealthCheckResponse>('db_check_health', {}),
   
   dbGetAllSettings: () =>
-    invoke<Record<string, string>>('db_get_all_settings', {}),
+    invoke<Setting[]>('db_get_all_settings', {}),
   
-  dbSaveSetting: (key: string, value: string) =>
-    invoke<{ saved: boolean }>('db_save_setting', { key, value }),
+  dbGetSetting: (key: string) =>
+    invoke<string | null>('db_get_setting', { key }),
+  
+  dbSaveSetting: (key: string, value: string, category?: string) =>
+    invoke<{ saved: boolean }>('db_save_setting', { key, value, category }),
   
   // Watchlist Commands
   dbGetWatchlists: () =>
     invoke<Watchlist[]>('db_get_watchlists', {}),
   
-  dbCreateWatchlist: (name: string, description?: string) =>
-    invoke<{ id: number }>('db_create_watchlist', { name, description }),
+  dbCreateWatchlist: (name: string, description?: string, color?: string) =>
+    invoke<Watchlist>('db_create_watchlist', { name, description, color }),
   
-  dbGetWatchlistStocks: (watchlistId: number) =>
+  dbGetWatchlistStocks: (watchlistId: string) =>
     invoke<WatchlistStock[]>('db_get_watchlist_stocks', { watchlistId }),
   
-  dbAddWatchlistStock: (watchlistId: number, symbol: string, name?: string) =>
-    invoke<{ added: boolean }>('db_add_watchlist_stock', { watchlistId, symbol, name }),
+  dbAddWatchlistStock: (watchlistId: string, symbol: string, notes?: string) =>
+    invoke<WatchlistStock>('db_add_watchlist_stock', { watchlistId, symbol, notes }),
   
-  dbRemoveWatchlistStock: (watchlistId: number, symbol: string) =>
+  dbRemoveWatchlistStock: (watchlistId: string, symbol: string) =>
     invoke<{ removed: boolean }>('db_remove_watchlist_stock', { watchlistId, symbol }),
   
-  dbDeleteWatchlist: (id: number) =>
-    invoke<{ deleted: boolean }>('db_delete_watchlist', { id }),
+  dbDeleteWatchlist: (watchlistId: string) =>
+    invoke<{ deleted: boolean }>('db_delete_watchlist', { watchlistId }),
   
   // Credential Commands
   dbGetCredentials: () =>
     invoke<Credential[]>('db_get_credentials', {}),
   
-  dbSaveCredential: (service: string, apiKey?: string, apiSecret?: string) =>
-    invoke<{ saved: boolean }>('db_save_credential', { service, apiKey, apiSecret }),
+  dbSaveCredential: (credential: Credential) =>
+    invoke<{ success: boolean; message: string }>('db_save_credential', credential),
   
-  dbDeleteCredential: (service: string) =>
-    invoke<{ deleted: boolean }>('db_delete_credential', { service }),
+  dbGetCredentialByService: (serviceName: string) =>
+    invoke<Credential | null>('db_get_credential_by_service', { serviceName }),
+  
+  dbDeleteCredential: (id: number) =>
+    invoke<{ success: boolean; message: string }>('db_delete_credential', { id }),
   
   // LLM Config Commands
   dbGetLlmConfigs: () =>
@@ -139,6 +151,45 @@ export const commands = {
   
   dbSaveLlmGlobalSettings: (settings: LlmGlobalSettings) =>
     invoke<{ saved: boolean }>('db_save_llm_global_settings', settings),
+  
+  // Chat Session Commands
+  dbCreateChatSession: (title: string) =>
+    invoke<ChatSession>('db_create_chat_session', { title }),
+  
+  dbGetChatSessions: (limit?: number) =>
+    invoke<ChatSession[]>('db_get_chat_sessions', { limit }),
+  
+  dbAddChatMessage: (message: ChatMessage) =>
+    invoke<ChatMessage>('db_add_chat_message', message),
+  
+  dbGetChatMessages: (sessionUuid: string) =>
+    invoke<ChatMessage[]>('db_get_chat_messages', { sessionUuid }),
+  
+  dbDeleteChatSession: (sessionUuid: string) =>
+    invoke<{ deleted: boolean }>('db_delete_chat_session', { sessionUuid }),
+  
+  // Data Source Commands
+  dbGetAllDataSources: () =>
+    invoke<DataSource[]>('db_get_all_data_sources', {}),
+  
+  dbSaveDataSource: (source: DataSource) =>
+    invoke<{ success: boolean; message: string; id?: string }>('db_save_data_source', source),
+  
+  dbDeleteDataSource: (id: string) =>
+    invoke<{ success: boolean; message: string }>('db_delete_data_source', { id }),
+  
+  // Portfolio Commands
+  dbListPortfolios: () =>
+    invoke<Portfolio[]>('db_list_portfolios', {}),
+  
+  dbGetPortfolio: (portfolioId: string) =>
+    invoke<Portfolio | null>('db_get_portfolio', { portfolioId }),
+  
+  dbCreatePortfolio: (name: string, currency?: string, description?: string) =>
+    invoke<{ id: string; created: boolean }>('db_create_portfolio', { name, currency, description }),
+  
+  dbDeletePortfolio: (portfolioId: string) =>
+    invoke<{ deleted: boolean }>('db_delete_portfolio', { portfolioId }),
   
   // Setup Commands
   checkSetupStatus: () =>
@@ -210,52 +261,111 @@ export interface FinancialsResponse {
   error?: string;
 }
 
+export interface PeriodReturnsResponse {
+  symbol: string;
+  seven_day: number;
+  thirty_day: number;
+}
+
 export interface HealthCheckResponse {
   status: string;
   message: string;
 }
 
+export interface Setting {
+  setting_key: string;
+  setting_value: string;
+  category?: string;
+  updated_at: string;
+}
+
 export interface Watchlist {
-  id: number;
+  id: string;
   name: string;
   description?: string;
+  color: string;
   created_at: string;
   updated_at: string;
 }
 
 export interface WatchlistStock {
-  id: number;
-  watchlist_id: number;
+  id: string;
+  watchlist_id: string;
   symbol: string;
-  name?: string;
+  notes?: string;
   added_at: string;
 }
 
 export interface Credential {
-  id: number;
-  service: string;
+  id?: number;
+  service_name: string;
+  username?: string;
+  password?: string;
   api_key?: string;
   api_secret?: string;
+  additional_data?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface LlmConfig {
+  provider: string;
+  api_key?: string;
+  base_url?: string;
+  model?: string;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface LlmGlobalSettings {
+  temperature?: number;
+  max_tokens?: number;
+  system_prompt?: string;
+}
+
+export interface ChatSession {
+  session_uuid: string;
+  title: string;
+  message_count: number;
   created_at: string;
   updated_at: string;
 }
 
-export interface LlmConfig {
-  id?: number;
-  name: string;
-  provider: string;
-  model: string;
-  api_key?: string;
-  base_url?: string;
-  temperature?: number;
-  max_tokens?: number;
-  enabled: boolean;
+export interface ChatMessage {
+  id: string;
+  session_uuid: string;
+  role: string;
+  content: string;
+  timestamp?: string;
+  provider?: string;
+  model?: string;
+  tokens_used?: number;
 }
 
-export interface LlmGlobalSettings {
-  default_provider?: string;
-  default_model?: string;
-  stream_responses?: boolean;
+export interface DataSource {
+  id: string;
+  alias: string;
+  display_name: string;
+  description?: string;
+  ds_type: string;
+  provider: string;
+  category: string;
+  config?: string;
+  enabled: boolean;
+  tags?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Portfolio {
+  id: string;
+  name: string;
+  owner: string;
+  currency: string;
+  description?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface SetupStatus {
