@@ -4,21 +4,31 @@
 // Endpoints:
 // - POST /api/rpc - JSON-RPC endpoint for all commands
 // - GET /api/health - Health check endpoint
+// - GET /api/ready - Readiness check endpoint
 // - WS /ws - WebSocket endpoint for real-time data (future)
+//
+// Production Features:
+// - Request tracing with unique request IDs
+// - Structured logging
+// - CORS configuration
+// - Health and readiness checks
 //
 // Usage:
 // Run with: cargo run --bin fincept-server --features web
 
 use axum::{
     extract::State,
-    http::Method,
-    response::IntoResponse,
+    http::{Method, Request, StatusCode},
+    middleware::{self, Next},
+    response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
 };
 use std::sync::Arc;
 use std::time::Instant;
 use tower_http::cors::{Any, CorsLayer};
+use tower_http::trace::TraceLayer;
+use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
 
 use super::rpc::dispatch;
 use super::types::{HealthResponse, RpcRequest, RpcResponse, ServerConfig};
@@ -27,6 +37,7 @@ use super::types::{HealthResponse, RpcRequest, RpcResponse, ServerConfig};
 pub struct ServerState {
     pub start_time: Instant,
     pub config: ServerConfig,
+    pub request_count: std::sync::atomic::AtomicU64,
 }
 
 /// Start the Axum web server
@@ -37,6 +48,7 @@ pub async fn run_server(config: ServerConfig) -> Result<(), Box<dyn std::error::
     let server_state = Arc::new(ServerState {
         start_time: Instant::now(),
         config: config.clone(),
+        request_count: std::sync::atomic::AtomicU64::new(0),
     });
 
     // Configure CORS
@@ -45,26 +57,43 @@ pub async fn run_server(config: ServerConfig) -> Result<(), Box<dyn std::error::
         .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
         .allow_headers(Any);
 
-    // Build the router
+    // Request ID layer for tracing
+    let x_request_id = axum::http::HeaderName::from_static("x-request-id");
+
+    // Build the router with middleware
     let app = Router::new()
         .route("/api/rpc", post(rpc_handler))
         .route("/api/health", get(health_handler))
+        .route("/api/ready", get(ready_handler))
         .route("/", get(index_handler))
+        .layer(middleware::from_fn_with_state(server_state.clone(), request_logging_middleware))
         .layer(cors)
+        .layer(PropagateRequestIdLayer::new(x_request_id.clone()))
+        .layer(SetRequestIdLayer::new(x_request_id.clone(), MakeRequestUuid))
+        .layer(TraceLayer::new_for_http())
         .with_state(server_state);
 
     // Start the server
     let addr = format!("{}:{}", config.host, config.port);
-    println!("🚀 Fincept Terminal Web Server starting...");
-    println!("   Listening on: http://{}", addr);
-    println!("   RPC Endpoint: POST http://{}/api/rpc", addr);
-    println!("   Health Check: GET http://{}/api/health", addr);
-    println!("");
-    println!("   Example RPC call:");
-    println!("   curl -X POST http://{}/api/rpc \\", addr);
-    println!("     -H 'Content-Type: application/json' \\");
-    println!("     -d '{{\"cmd\": \"greet\", \"args\": {{\"name\": \"World\"}}}}'");
-    println!("");
+    println!("╔═══════════════════════════════════════════════════════════╗");
+    println!("║     FINCEPT TERMINAL WEB SERVER - PRODUCTION READY        ║");
+    println!("╠═══════════════════════════════════════════════════════════╣");
+    println!("║  🚀 Server starting...                                    ║");
+    println!("║  📍 Listening on: http://{:<29} ║", addr);
+    println!("║                                                           ║");
+    println!("║  Endpoints:                                               ║");
+    println!("║  • POST /api/rpc    - JSON-RPC commands                   ║");
+    println!("║  • GET  /api/health - Health check                        ║");
+    println!("║  • GET  /api/ready  - Readiness check                     ║");
+    println!("║  • GET  /           - API documentation                   ║");
+    println!("╠═══════════════════════════════════════════════════════════╣");
+    println!("║  Features:                                                ║");
+    println!("║  ✓ Request tracing with X-Request-ID                      ║");
+    println!("║  ✓ Structured logging                                     ║");
+    println!("║  ✓ CORS enabled                                           ║");
+    println!("║  ✓ Health & readiness checks                              ║");
+    println!("╚═══════════════════════════════════════════════════════════╝");
+    println!();
 
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     axum::serve(listener, app).await?;
@@ -72,24 +101,118 @@ pub async fn run_server(config: ServerConfig) -> Result<(), Box<dyn std::error::
     Ok(())
 }
 
+/// Request logging middleware
+async fn request_logging_middleware(
+    State(state): State<Arc<ServerState>>,
+    request: Request<axum::body::Body>,
+    next: Next,
+) -> Response {
+    let start = Instant::now();
+    let method = request.method().clone();
+    let uri = request.uri().clone();
+    let request_id = request
+        .headers()
+        .get("x-request-id")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("unknown")
+        .to_string();
+
+    // Increment request counter
+    state.request_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
+    // Process request
+    let response = next.run(request).await;
+
+    // Log request completion
+    let duration = start.elapsed();
+    let status = response.status();
+    
+    // Log format: [request_id] METHOD /path -> STATUS (duration_ms)
+    if status.is_success() {
+        tracing::info!(
+            request_id = %request_id,
+            method = %method,
+            uri = %uri,
+            status = %status.as_u16(),
+            duration_ms = %duration.as_millis(),
+            "Request completed"
+        );
+    } else {
+        tracing::warn!(
+            request_id = %request_id,
+            method = %method,
+            uri = %uri,
+            status = %status.as_u16(),
+            duration_ms = %duration.as_millis(),
+            "Request failed"
+        );
+    }
+
+    response
+}
+
 /// RPC endpoint handler
 /// Accepts JSON-RPC style requests and dispatches to command handlers
 async fn rpc_handler(
     Json(request): Json<RpcRequest>,
 ) -> impl IntoResponse {
+    let cmd = request.cmd.clone();
+    tracing::debug!(command = %cmd, "Processing RPC command");
+    
     let response = dispatch(request).await;
+    
+    if response.success {
+        tracing::debug!(command = %cmd, "RPC command succeeded");
+    } else {
+        tracing::warn!(command = %cmd, error = ?response.error, "RPC command failed");
+    }
+    
     Json(response)
 }
 
-/// Health check endpoint
+/// Health check endpoint - always returns healthy if server is running
 async fn health_handler(State(state): State<Arc<ServerState>>) -> impl IntoResponse {
     let uptime = state.start_time.elapsed().as_secs();
+    let _total_requests = state.request_count.load(std::sync::atomic::Ordering::Relaxed);
     
     Json(HealthResponse {
         status: "healthy".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
         uptime_seconds: uptime,
     })
+}
+
+/// Readiness check endpoint - checks if server is ready to serve traffic
+async fn ready_handler(State(state): State<Arc<ServerState>>) -> impl IntoResponse {
+    // Check database connectivity
+    match crate::database::pool::get_pool() {
+        Ok(pool) => {
+            match pool.get() {
+                Ok(_) => {
+                    let uptime = state.start_time.elapsed().as_secs();
+                    (StatusCode::OK, Json(serde_json::json!({
+                        "status": "ready",
+                        "database": "connected",
+                        "uptime_seconds": uptime
+                    })))
+                }
+                Err(_) => {
+                    (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({
+                        "status": "not_ready",
+                        "database": "disconnected",
+                        "error": "Database connection failed"
+                    })))
+                }
+            }
+        }
+        Err(e) => {
+            (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({
+                "status": "not_ready",
+                "database": "error",
+                "error": format!("Database pool error: {}", e)
+            })))
+        }
+    }
 }
 
 /// Index handler - returns API documentation

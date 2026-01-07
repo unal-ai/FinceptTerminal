@@ -26,7 +26,7 @@ required-features = ["web"]
 [features]
 default = []
 # Web server feature - enables Axum-based HTTP server
-web = ["axum", "tower-http"]
+web = ["axum", "tower-http", "tower"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -94,7 +94,8 @@ quick-xml = "0.37"  # Fast XML/RSS parsing
 
 # Web server dependencies (optional, feature-gated)
 axum = { version = "0.7", optional = true }
-tower-http = { version = "0.5", features = ["cors"], optional = true }
+tower-http = { version = "0.5", features = ["cors", "trace", "request-id"], optional = true }
+tower = { version = "0.4", optional = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 [target.'cfg(target_os = "macos")'.dependencies]
