@@ -175,3 +175,4 @@ nul
 # Playwright artifacts
 **/playwright-report/
 **/test-results/
+*.pid

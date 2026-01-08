@@ -209,14 +209,9 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       '/api': {
-        target: 'https://finceptbackend.share.zrok.io',
+        target: 'http://localhost:3000',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
-        configure: (proxy, options) => {
-          proxy.on('proxyReq', (proxyReq, req, res) => {
-            proxyReq.setHeader('skip_zrok_interstitial', '1');
-          });
-        }
+        secure: false,
       }
     }
   },

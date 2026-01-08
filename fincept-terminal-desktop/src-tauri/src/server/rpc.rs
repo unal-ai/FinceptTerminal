@@ -2,15 +2,14 @@
 // This module maps command names to their handlers, similar to Tauri's invoke_handler.
 // It allows reusing all existing command logic without modification.
 
-use super::types::{RpcRequest, RpcResponse, ServerState};
+use super::types::{RpcRequest, RpcResponse};
 use serde_json::Value;
-use std::sync::Arc;
 
 /// Dispatch an RPC request to the appropriate command handler
 /// 
 /// This function acts as the central router, mapping command names to their
 /// implementations. It mirrors the behavior of Tauri's invoke_handler macro.
-pub async fn dispatch(state: Arc<ServerState>, request: RpcRequest) -> RpcResponse {
+pub async fn dispatch(request: RpcRequest) -> RpcResponse {
     let args = request.args;
     
     match request.cmd.as_str() {
@@ -82,6 +81,37 @@ pub async fn dispatch(state: Arc<ServerState>, request: RpcRequest) -> RpcRespon
         "db_get_portfolio" => dispatch_db_get_portfolio(args).await,
         "db_create_portfolio" => dispatch_db_create_portfolio(args).await,
         "db_delete_portfolio" => dispatch_db_delete_portfolio(args).await,
+        "db_update_portfolio_balance" => dispatch_db_update_portfolio_balance(args).await,
+
+        // ============================================================================
+        // PAPER TRADING - POSITIONS
+        // ============================================================================
+        "db_create_position" => dispatch_db_create_position(args).await,
+        "db_get_portfolio_positions" => dispatch_db_get_portfolio_positions(args).await,
+        "db_get_position" => dispatch_db_get_position(args).await,
+        "db_get_position_by_symbol" => dispatch_db_get_position_by_symbol(args).await,
+        "db_get_position_by_symbol_and_side" => dispatch_db_get_position_by_symbol_and_side(args).await,
+        "db_update_position" => dispatch_db_update_position(args).await,
+        "db_delete_position" => dispatch_db_delete_position(args).await,
+
+        // ============================================================================
+        // PAPER TRADING - ORDERS
+        // ============================================================================
+        "db_create_order" => dispatch_db_create_order(args).await,
+        "db_get_order" => dispatch_db_get_order(args).await,
+        "db_get_portfolio_orders" => dispatch_db_get_portfolio_orders(args).await,
+        "db_get_pending_orders" => dispatch_db_get_pending_orders(args).await,
+        "db_update_order" => dispatch_db_update_order(args).await,
+        "db_delete_order" => dispatch_db_delete_order(args).await,
+
+        // ============================================================================
+        // PAPER TRADING - TRADES
+        // ============================================================================
+        "db_create_trade" => dispatch_db_create_trade(args).await,
+        "db_get_trade" => dispatch_db_get_trade(args).await,
+        "db_get_portfolio_trades" => dispatch_db_get_portfolio_trades(args).await,
+        "db_get_order_trades" => dispatch_db_get_order_trades(args).await,
+        "db_delete_trade" => dispatch_db_delete_trade(args).await,
 
         // ============================================================================
         // WATCHLIST COMMANDS
@@ -614,6 +644,322 @@ async fn dispatch_check_setup_status() -> RpcResponse {
             "python_installed": false,
             "database_ready": false
         })),
+    }
+}
+
+// ============================================================================
+// PAPER TRADING DISPATCH FUNCTIONS
+// ============================================================================
+
+async fn dispatch_db_update_portfolio_balance(args: Value) -> RpcResponse {
+    let id = match args.get("id").and_then(|v| v.as_str()) {
+        Some(i) => i.to_string(),
+        None => return RpcResponse::err("Missing 'id' parameter"),
+    };
+    let new_balance = match args.get("newBalance").or(args.get("new_balance")).and_then(|v| v.as_f64()) {
+        Some(b) => b,
+        None => return RpcResponse::err("Missing 'newBalance' parameter"),
+    };
+
+    match crate::database::paper_trading::update_portfolio_balance(&id, new_balance) {
+        Ok(_) => RpcResponse::ok(serde_json::json!({"updated": true})),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_create_position(args: Value) -> RpcResponse {
+    let id = args.get("id").and_then(|v| v.as_str()).map(|s| s.to_string()).unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    let portfolio_id = match args.get("portfolioId").or(args.get("portfolio_id")).and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return RpcResponse::err("Missing 'portfolioId' parameter"),
+    };
+    let symbol = match args.get("symbol").and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return RpcResponse::err("Missing 'symbol' parameter"),
+    };
+    let side = match args.get("side").and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return RpcResponse::err("Missing 'side' parameter"),
+    };
+    let entry_price = match args.get("entryPrice").or(args.get("entry_price")).and_then(|v| v.as_f64()) {
+        Some(f) => f,
+        None => return RpcResponse::err("Missing 'entryPrice' parameter"),
+    };
+    let quantity = match args.get("quantity").and_then(|v| v.as_f64()) {
+        Some(f) => f,
+        None => return RpcResponse::err("Missing 'quantity' parameter"),
+    };
+    let leverage = args.get("leverage").and_then(|v| v.as_f64()).unwrap_or(1.0);
+    let margin_mode = args.get("marginMode").or(args.get("margin_mode")).and_then(|v| v.as_str()).unwrap_or("cross").to_string();
+
+    match crate::database::paper_trading::create_position(&id, &portfolio_id, &symbol, &side, entry_price, quantity, leverage, &margin_mode) {
+         Ok(_) => RpcResponse::ok(serde_json::json!({"created": true})),
+         Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_get_portfolio_positions(args: Value) -> RpcResponse {
+    let portfolio_id = match args.get("portfolioId").or(args.get("portfolio_id")).and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return RpcResponse::err("Missing 'portfolioId' parameter"),
+    };
+    let status = args.get("status").and_then(|v| v.as_str()).map(|s| s.to_string());
+
+    match crate::database::paper_trading::get_portfolio_positions(&portfolio_id, status.as_deref()) {
+        Ok(positions) => RpcResponse::ok(positions),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_get_position(args: Value) -> RpcResponse {
+    let id = match args.get("id").and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return RpcResponse::err("Missing 'id' parameter"),
+    };
+    match crate::database::paper_trading::get_position(&id) {
+        Ok(pos) => RpcResponse::ok(pos),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_get_position_by_symbol(args: Value) -> RpcResponse {
+    let portfolio_id = match args.get("portfolioId").or(args.get("portfolio_id")).and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return RpcResponse::err("Missing 'portfolioId' parameter"),
+    };
+    let symbol = match args.get("symbol").and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return RpcResponse::err("Missing 'symbol' parameter"),
+    };
+    let status = args.get("status").and_then(|v| v.as_str()).unwrap_or("open").to_string();
+
+    match crate::database::paper_trading::get_position_by_symbol(&portfolio_id, &symbol, &status) {
+        Ok(pos) => RpcResponse::ok(pos),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_get_position_by_symbol_and_side(args: Value) -> RpcResponse {
+    let portfolio_id = match args.get("portfolioId").or(args.get("portfolio_id")).and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return RpcResponse::err("Missing 'portfolioId' parameter"),
+    };
+    let symbol = match args.get("symbol").and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return RpcResponse::err("Missing 'symbol' parameter"),
+    };
+    let side = match args.get("side").and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return RpcResponse::err("Missing 'side' parameter"),
+    };
+    let status = args.get("status").and_then(|v| v.as_str()).unwrap_or("open").to_string();
+
+    match crate::database::paper_trading::get_position_by_symbol_and_side(&portfolio_id, &symbol, &side, &status) {
+        Ok(pos) => RpcResponse::ok(pos),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_update_position(args: Value) -> RpcResponse {
+    let id = match args.get("id").and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return RpcResponse::err("Missing 'id' parameter"),
+    };
+    let quantity = args.get("quantity").and_then(|v| v.as_f64());
+    let entry_price = args.get("entryPrice").or(args.get("entry_price")).and_then(|v| v.as_f64());
+    let current_price = args.get("currentPrice").or(args.get("current_price")).and_then(|v| v.as_f64());
+    let unrealized_pnl = args.get("unrealizedPnl").or(args.get("unrealized_pnl")).and_then(|v| v.as_f64());
+    let realized_pnl = args.get("realizedPnl").or(args.get("realized_pnl")).and_then(|v| v.as_f64());
+    let liquidation_price = args.get("liquidationPrice").or(args.get("liquidation_price")).and_then(|v| v.as_f64());
+    let status = args.get("status").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let closed_at = args.get("closedAt").or(args.get("closed_at")).and_then(|v| v.as_str()).map(|s| s.to_string());
+
+    match crate::database::paper_trading::update_position(&id, quantity, entry_price, current_price, unrealized_pnl, realized_pnl, liquidation_price, status.as_deref(), closed_at.as_deref()) {
+        Ok(_) => RpcResponse::ok(serde_json::json!({"updated": true})),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_delete_position(args: Value) -> RpcResponse {
+    let id = match args.get("id").and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return RpcResponse::err("Missing 'id' parameter"),
+    };
+    match crate::database::paper_trading::delete_position(&id) {
+        Ok(_) => RpcResponse::ok(serde_json::json!({"deleted": true})),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_create_order(args: Value) -> RpcResponse {
+     let id = args.get("id").and_then(|v| v.as_str()).map(|s| s.to_string()).unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    let portfolio_id = match args.get("portfolioId").or(args.get("portfolio_id")).and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return RpcResponse::err("Missing 'portfolioId' parameter"),
+    };
+    let symbol = match args.get("symbol").and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return RpcResponse::err("Missing 'symbol' parameter"),
+    };
+    let side = match args.get("side").and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return RpcResponse::err("Missing 'side' parameter"),
+    };
+    let order_type = match args.get("orderType").or(args.get("order_type")).or(args.get("type")).and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return RpcResponse::err("Missing 'orderType' parameter"),
+    };
+    let quantity = match args.get("quantity").and_then(|v| v.as_f64()) {
+        Some(f) => f,
+        None => return RpcResponse::err("Missing 'quantity' parameter"),
+    };
+    let price = args.get("price").and_then(|v| v.as_f64());
+    let time_in_force = args.get("timeInForce").or(args.get("time_in_force")).and_then(|v| v.as_str()).unwrap_or("GTC").to_string();
+
+    match crate::database::paper_trading::create_order(&id, &portfolio_id, &symbol, &side, &order_type, quantity, price, &time_in_force) {
+        Ok(_) => RpcResponse::ok(serde_json::json!({"created": true})),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_get_order(args: Value) -> RpcResponse {
+    let id = match args.get("id").and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return RpcResponse::err("Missing 'id' parameter"),
+    };
+    match crate::database::paper_trading::get_order(&id) {
+        Ok(order) => RpcResponse::ok(order),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_get_portfolio_orders(args: Value) -> RpcResponse {
+     let portfolio_id = match args.get("portfolioId").or(args.get("portfolio_id")).and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return RpcResponse::err("Missing 'portfolioId' parameter"),
+    };
+    let status = args.get("status").and_then(|v| v.as_str()).map(|s| s.to_string());
+
+    match crate::database::paper_trading::get_portfolio_orders(&portfolio_id, status.as_deref()) {
+        Ok(orders) => RpcResponse::ok(orders),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_get_pending_orders(args: Value) -> RpcResponse {
+    let portfolio_id = args.get("portfolioId").or(args.get("portfolio_id")).and_then(|v| v.as_str()).map(|s| s.to_string());
+    match crate::database::paper_trading::get_pending_orders(portfolio_id.as_deref()) {
+        Ok(orders) => RpcResponse::ok(orders),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_update_order(args: Value) -> RpcResponse {
+    let id = match args.get("id").and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return RpcResponse::err("Missing 'id' parameter"),
+    };
+    let filled_quantity = args.get("filledQuantity").or(args.get("filled_quantity")).and_then(|v| v.as_f64());
+    let avg_fill_price = args.get("avgFillPrice").or(args.get("avg_fill_price")).and_then(|v| v.as_f64());
+    let status = args.get("status").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let filled_at = args.get("filledAt").or(args.get("filled_at")).and_then(|v| v.as_str()).map(|s| s.to_string());
+
+    match crate::database::paper_trading::update_order(&id, filled_quantity, avg_fill_price, status.as_deref(), filled_at.as_deref()) {
+        Ok(_) => RpcResponse::ok(serde_json::json!({"updated": true})),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_delete_order(args: Value) -> RpcResponse {
+    let id = match args.get("id").and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return RpcResponse::err("Missing 'id' parameter"),
+    };
+    match crate::database::paper_trading::delete_order(&id) {
+        Ok(_) => RpcResponse::ok(serde_json::json!({"deleted": true})),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_create_trade(args: Value) -> RpcResponse {
+    let id = args.get("id").and_then(|v| v.as_str()).map(|s| s.to_string()).unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    let portfolio_id = match args.get("portfolioId").or(args.get("portfolio_id")).and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return RpcResponse::err("Missing 'portfolioId' parameter"),
+    };
+    let order_id = match args.get("orderId").or(args.get("order_id")).and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return RpcResponse::err("Missing 'orderId' parameter"),
+    };
+    let symbol = match args.get("symbol").and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return RpcResponse::err("Missing 'symbol' parameter"),
+    };
+    let side = match args.get("side").and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return RpcResponse::err("Missing 'side' parameter"),
+    };
+    let price = match args.get("price").and_then(|v| v.as_f64()) {
+        Some(f) => f,
+        None => return RpcResponse::err("Missing 'price' parameter"),
+    };
+    let quantity = match args.get("quantity").and_then(|v| v.as_f64()) {
+        Some(f) => f,
+        None => return RpcResponse::err("Missing 'quantity' parameter"),
+    };
+    let fee = args.get("fee").and_then(|v| v.as_f64()).unwrap_or(0.0);
+    let fee_rate = args.get("feeRate").or(args.get("fee_rate")).and_then(|v| v.as_f64()).unwrap_or(0.0);
+    let is_maker = args.get("isMaker").or(args.get("is_maker")).and_then(|v| v.as_bool()).unwrap_or(false);
+
+    match crate::database::paper_trading::create_trade(&id, &portfolio_id, &order_id, &symbol, &side, price, quantity, fee, fee_rate, is_maker) {
+        Ok(_) => RpcResponse::ok(serde_json::json!({"created": true})),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_get_portfolio_trades(args: Value) -> RpcResponse {
+    let portfolio_id = match args.get("portfolioId").or(args.get("portfolio_id")).and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return RpcResponse::err("Missing 'portfolioId' parameter"),
+    };
+    let limit = args.get("limit").and_then(|v| v.as_i64());
+
+    match crate::database::paper_trading::get_portfolio_trades(&portfolio_id, limit) {
+        Ok(trades) => RpcResponse::ok(trades),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_get_trade(args: Value) -> RpcResponse {
+    let id = match args.get("id").and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return RpcResponse::err("Missing 'id' parameter"),
+    };
+    match crate::database::paper_trading::get_trade(&id) {
+        Ok(trade) => RpcResponse::ok(trade),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_get_order_trades(args: Value) -> RpcResponse {
+    let order_id = match args.get("orderId").or(args.get("order_id")).and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return RpcResponse::err("Missing 'orderId' parameter"),
+    };
+    match crate::database::paper_trading::get_order_trades(&order_id) {
+        Ok(trades) => RpcResponse::ok(trades),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_delete_trade(args: Value) -> RpcResponse {
+    let id = match args.get("id").and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return RpcResponse::err("Missing 'id' parameter"),
+    };
+    match crate::database::paper_trading::delete_trade(&id) {
+        Ok(_) => RpcResponse::ok(serde_json::json!({"deleted": true})),
+        Err(e) => RpcResponse::err(e.to_string()),
     }
 }
 
