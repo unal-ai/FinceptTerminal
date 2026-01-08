@@ -443,6 +443,10 @@ export async function joinPath(...paths: string[]): Promise<string> {
     return tauriJoin(...paths);
   } else {
     // In web mode, use forward slash path joining while preserving leading slashes
+    // Edge case handling: empty array or all empty strings returns empty string
+    if (paths.length === 0) {
+      return '';
+    }
     const result = paths
       .map((p, i) => i === 0 ? p.replace(/\/+$/g, '') : p.replace(/^\/+|\/+$/g, ''))
       .filter(p => p.length > 0)
@@ -484,8 +488,8 @@ export async function shellOpen(path: string): Promise<void> {
     const { open } = await import('@tauri-apps/plugin-shell');
     return open(path);
   } else {
-    // In web mode, open in new tab
-    window.open(path, '_blank');
+    // In web mode, open in new tab with security attributes to prevent reverse tabnabbing
+    window.open(path, '_blank', 'noopener,noreferrer');
   }
 }
 
@@ -501,8 +505,8 @@ export async function openUrl(url: string): Promise<void> {
     const { openUrl: tauriOpenUrl } = await import('@tauri-apps/plugin-opener');
     return tauriOpenUrl(url);
   } else {
-    // In web mode, open in new tab
-    window.open(url, '_blank');
+    // In web mode, open in new tab with security attributes to prevent reverse tabnabbing
+    window.open(url, '_blank', 'noopener,noreferrer');
   }
 }
 
@@ -556,14 +560,31 @@ export async function openDialog(options?: OpenDialogOptions): Promise<string | 
   } else {
     // In web mode, use HTML file input
     // Note: Returns file names (not full paths) as web browsers don't expose full paths for security
+    // Note: The input element is not appended to DOM; browser GC handles cleanup
     return new Promise((resolve) => {
+      let resolved = false;
       const input = document.createElement('input');
       input.type = 'file';
       input.multiple = options?.multiple ?? false;
       if (options?.filters?.length) {
         input.accept = options.filters.flatMap(f => f.extensions.map(e => `.${e}`)).join(',');
       }
+      
+      // Handle cancel - browsers fire focus event when file dialog is cancelled
+      // Use a 300ms delay to allow onchange to fire first if a file was selected
+      // (This delay accounts for the browser's internal event processing)
+      const handleCancel = () => {
+        setTimeout(() => {
+          if (!resolved && !input.files?.length) {
+            resolved = true;
+            resolve(null);
+          }
+        }, 300);
+      };
+      window.addEventListener('focus', handleCancel, { once: true });
+      
       input.onchange = () => {
+        resolved = true;
         if (input.files?.length) {
           const files = Array.from(input.files).map(f => f.name);
           resolve(options?.multiple ? files : files[0]);
@@ -571,6 +592,7 @@ export async function openDialog(options?: OpenDialogOptions): Promise<string | 
           resolve(null);
         }
       };
+      
       input.click();
     });
   }

@@ -175,8 +175,29 @@ FINCEPT_METRICS_PORT=9090
 
 ## Security Checklist
 
+### ⚠️ CRITICAL: Authentication Required for Internet-Facing Deployments
+
+**WARNING:** The `/api/rpc` endpoint includes commands that can access stored credentials (`db_get_credentials`) and modify database state. Before exposing this server to the internet, you MUST implement authentication.
+
+**Options for Authentication:**
+1. **Nginx Basic Auth** - Simple username/password authentication at the reverse proxy level
+2. **API Token** - Implement Bearer token validation in the Axum middleware
+3. **OAuth2/OIDC** - Integrate with an identity provider
+4. **VPN/Private Network** - Restrict access to internal network only
+
+For Nginx Basic Auth (simplest option):
+```bash
+# Generate password file
+htpasswd -c /etc/nginx/.htpasswd admin
+
+# Add to nginx.conf location blocks:
+auth_basic "Fincept Terminal";
+auth_basic_user_file /etc/nginx/.htpasswd;
+```
+
 ### Before Production
 
+- [ ] **⚠️ IMPLEMENT AUTHENTICATION** (see above)
 - [ ] Change default ports if needed
 - [ ] Configure CORS origins to specific domains
 - [ ] Enable SSL/TLS

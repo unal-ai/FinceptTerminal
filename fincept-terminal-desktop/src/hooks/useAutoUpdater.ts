@@ -5,7 +5,13 @@ const CHECK_INTERVAL_MS = 30 * 60 * 1000; // Check every 30 minutes
 const LAST_CHECK_KEY = 'updater_last_check';
 const DISMISSED_VERSION_KEY = 'updater_dismissed_version';
 
-// Tauri Update type for internal use
+/**
+ * Tauri Update type for internal use
+ * 
+ * The downloadAndInstall callback receives progress events with the following structure:
+ * - event: 'Started' | 'Progress' | 'Finished'
+ * - data: { chunkLength?: number, contentLength?: number } (may be undefined for some events)
+ */
 interface TauriUpdate {
   available: boolean;
   version: string;

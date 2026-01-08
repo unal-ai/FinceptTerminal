@@ -173,7 +173,8 @@ async fn rpc_handler(
 /// Health check endpoint - always returns healthy if server is running
 async fn health_handler(State(state): State<Arc<ServerState>>) -> impl IntoResponse {
     let uptime = state.start_time.elapsed().as_secs();
-    let _total_requests = state.request_count.load(std::sync::atomic::Ordering::Relaxed);
+    // Note: request_count is tracked for potential future metrics but not included in health response
+    // to keep the response minimal. Use /api/ready for more detailed status.
     
     Json(HealthResponse {
         status: "healthy".to_string(),
@@ -187,8 +188,11 @@ async fn ready_handler(State(state): State<Arc<ServerState>>) -> impl IntoRespon
     // Check database connectivity
     match crate::database::pool::get_pool() {
         Ok(pool) => {
+            // Get a connection from the pool to verify connectivity
+            // The connection is automatically returned to the pool when dropped (Rust RAII)
             match pool.get() {
-                Ok(_) => {
+                Ok(_conn) => {
+                    // Connection obtained successfully - it will be returned to pool when _conn drops
                     let uptime = state.start_time.elapsed().as_secs();
                     (StatusCode::OK, Json(serde_json::json!({
                         "status": "ready",
