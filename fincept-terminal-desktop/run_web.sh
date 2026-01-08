@@ -8,6 +8,12 @@ if [ ! -d ".venv" ]; then
     exit 1
 fi
 
+# Kill previous instances
+echo "🧹 Cleaning up previous instances..."
+lsof -ti:1420 | xargs kill -9 2>/dev/null || true
+lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+sleep 1
+
 # Set environment variables for Python linkage and runtime
 export PYO3_PYTHON="$(pwd)/.venv/bin/python"
 export FINCEPT_PYTHON_PATH="$(pwd)/.venv/bin/python"
@@ -23,16 +29,16 @@ cleanup() {
 }
 trap cleanup SIGINT SIGTERM
 
-# Start Frontend
-echo "📦 Starting Frontend (Vite)..."
-bun run dev &
+# Start Frontend (listen on 0.0.0.0)
+echo "📦 Starting Frontend (Vite) on 0.0.0.0:1420..."
+bun run dev --host 0.0.0.0 &
 FRONTEND_PID=$!
 
 # Wait a moment
 sleep 2
 
-# Start Backend
-echo "🦀 Starting Backend (Rust/Axum)..."
+# Start Backend (listen on 0.0.0.0)
+echo "🦀 Starting Backend (Rust/Axum) on 0.0.0.0:3000..."
 echo "ℹ️  Note: Backend runs in foreground. Press Ctrl+C to stop both."
 cd src-tauri
-cargo run --bin fincept-server --features web
+FINCEPT_HOST=0.0.0.0 cargo run --bin fincept-server --features web
