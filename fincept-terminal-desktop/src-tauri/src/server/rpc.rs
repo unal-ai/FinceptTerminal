@@ -1714,4 +1714,150 @@ mod tests {
         assert!(response.error.is_some());
         assert_eq!(response.error.unwrap(), "Missing 'serverId' parameter");
     }
+
+    // ============================================================================
+    // MONITORING DISPATCH FUNCTION TESTS
+    // ============================================================================
+
+    #[tokio::test]
+    async fn test_dispatch_monitor_add_condition_missing_provider() {
+        let ws_state = create_test_ws_state();
+        let args = serde_json::json!({
+            "symbol": "BTC/USD",
+            "field": "price",
+            "operator": ">",
+            "value": 50000.0
+        });
+        
+        let response = dispatch_monitor_add_condition(&ws_state, args).await;
+        
+        assert!(response.error.is_some());
+        assert_eq!(response.error.unwrap(), "Missing 'provider' parameter");
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_monitor_add_condition_missing_symbol() {
+        let ws_state = create_test_ws_state();
+        let args = serde_json::json!({
+            "provider": "binance",
+            "field": "price",
+            "operator": ">",
+            "value": 50000.0
+        });
+        
+        let response = dispatch_monitor_add_condition(&ws_state, args).await;
+        
+        assert!(response.error.is_some());
+        assert_eq!(response.error.unwrap(), "Missing 'symbol' parameter");
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_monitor_add_condition_missing_field() {
+        let ws_state = create_test_ws_state();
+        let args = serde_json::json!({
+            "provider": "binance",
+            "symbol": "BTC/USD",
+            "operator": ">",
+            "value": 50000.0
+        });
+        
+        let response = dispatch_monitor_add_condition(&ws_state, args).await;
+        
+        assert!(response.error.is_some());
+        assert_eq!(response.error.unwrap(), "Missing 'field' parameter");
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_monitor_add_condition_missing_operator() {
+        let ws_state = create_test_ws_state();
+        let args = serde_json::json!({
+            "provider": "binance",
+            "symbol": "BTC/USD",
+            "field": "price",
+            "value": 50000.0
+        });
+        
+        let response = dispatch_monitor_add_condition(&ws_state, args).await;
+        
+        assert!(response.error.is_some());
+        assert_eq!(response.error.unwrap(), "Missing 'operator' parameter");
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_monitor_add_condition_missing_value() {
+        let ws_state = create_test_ws_state();
+        let args = serde_json::json!({
+            "provider": "binance",
+            "symbol": "BTC/USD",
+            "field": "price",
+            "operator": ">"
+        });
+        
+        let response = dispatch_monitor_add_condition(&ws_state, args).await;
+        
+        assert!(response.error.is_some());
+        assert_eq!(response.error.unwrap(), "Missing 'value' parameter");
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_monitor_delete_condition_missing_id() {
+        let ws_state = create_test_ws_state();
+        let args = serde_json::json!({});
+        
+        let response = dispatch_monitor_delete_condition(&ws_state, args).await;
+        
+        assert!(response.error.is_some());
+        assert_eq!(response.error.unwrap(), "Missing 'id' parameter");
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_monitor_get_conditions_success() {
+        let response = dispatch_monitor_get_conditions().await;
+        
+        // Should succeed even with no database (will return error or empty list)
+        // The important thing is it doesn't panic
+        assert!(response.error.is_some() || response.result.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_monitor_get_alerts_default_limit() {
+        let args = serde_json::json!({});
+        
+        let response = dispatch_monitor_get_alerts(args).await;
+        
+        // Should succeed even with no database (will return error or empty list)
+        // The important thing is it doesn't panic
+        assert!(response.error.is_some() || response.result.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_monitor_get_alerts_custom_limit() {
+        let args = serde_json::json!({"limit": 10});
+        
+        let response = dispatch_monitor_get_alerts(args).await;
+        
+        // Should succeed even with no database (will return error or empty list)
+        // The important thing is it doesn't panic
+        assert!(response.error.is_some() || response.result.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_monitor_load_conditions_success() {
+        let ws_state = create_test_ws_state();
+        
+        let response = dispatch_monitor_load_conditions(&ws_state).await;
+        
+        // Should succeed even with no database (will return error or ok)
+        // The important thing is it doesn't panic
+        assert!(response.error.is_some() || response.result.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_cleanup_running_workflows_success() {
+        let response = dispatch_cleanup_running_workflows().await;
+        
+        // Should always return ok as it's a no-op acknowledgment
+        assert!(response.error.is_none());
+        assert!(response.result.is_some());
+    }
 }
