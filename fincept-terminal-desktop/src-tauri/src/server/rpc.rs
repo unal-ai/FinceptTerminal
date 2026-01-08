@@ -1182,7 +1182,10 @@ async fn dispatch_monitor_get_conditions() -> RpcResponse {
                 rusqlite::Error::FromSqlConversionFailure(
                     3,
                     rusqlite::types::Type::Text,
-                    Box::new(std::fmt::Error),
+                    Box::new(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        format!("Invalid field value: {}", field_str)
+                    )),
                 )
             })?;
 
@@ -1192,7 +1195,10 @@ async fn dispatch_monitor_get_conditions() -> RpcResponse {
                 rusqlite::Error::FromSqlConversionFailure(
                     4,
                     rusqlite::types::Type::Text,
-                    Box::new(std::fmt::Error),
+                    Box::new(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        format!("Invalid operator value: {}", operator_str)
+                    )),
                 )
             })?;
 
@@ -1280,7 +1286,10 @@ async fn dispatch_monitor_get_alerts(args: Value) -> RpcResponse {
                 rusqlite::Error::FromSqlConversionFailure(
                     4,
                     rusqlite::types::Type::Text,
-                    Box::new(std::fmt::Error),
+                    Box::new(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        format!("Invalid field value: {}", field_str)
+                    )),
                 )
             })?;
 
