@@ -24,6 +24,9 @@ ensure_uv() {
   fi
   echo "[..] uv not found. Attempting to install uv..."
   if command -v curl >/dev/null 2>&1; then
+    # WARNING: This downloads and executes a remote installer script without verification.
+    # For production use, consider installing uv via a package manager or verifying
+    # the installer against a pinned checksum/signature to mitigate supply-chain risks.
     curl -LsSf https://astral.sh/uv/install.sh | sh
     export PATH="$HOME/.cargo/bin:$PATH"
   fi
@@ -42,12 +45,14 @@ ensure_mamba() {
 
 setup_python_env() {
   local env_python=""
+  local old_dir="$(pwd)"
   if ensure_uv; then
     echo "[OK] Using uv for Python environment"
     cd "$FRONTEND_DIR"
     uv venv --python 3.11
     uv pip install -r "$REQ_FILE"
     env_python="$FRONTEND_DIR/.venv/bin/python"
+    cd "$old_dir"
   elif ensure_mamba; then
     echo "[OK] Using mamba/conda for Python environment"
     local env_name="fincept-terminal"

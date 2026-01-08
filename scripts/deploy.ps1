@@ -22,6 +22,9 @@ function Ensure-Uv {
   if (Get-Command uv -ErrorAction SilentlyContinue) { return $true }
   Write-Host "[..] uv not found. Attempting to install uv..."
   try {
+    # WARNING: This downloads and executes a remote PowerShell script without verification.
+    # For production use, consider installing uv via a package manager or verifying
+    # the installer against a pinned checksum/signature to mitigate supply-chain risks.
     iwr https://astral.sh/uv/install.ps1 -UseBasicParsing | iex
   } catch {
     return $false
