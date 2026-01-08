@@ -29,9 +29,16 @@ pub struct RpcResponse {
 impl RpcResponse {
     /// Create a successful response
     pub fn ok<T: Serialize>(data: T) -> Self {
+        let data_value = match serde_json::to_value(data) {
+            Ok(value) => value,
+            Err(e) => {
+                eprintln!("RpcResponse::ok: failed to serialize response data: {}", e);
+                serde_json::Value::Null
+            }
+        };
         Self {
             success: true,
-            data: Some(serde_json::to_value(data).unwrap_or(serde_json::Value::Null)),
+            data: Some(data_value),
             error: None,
         }
     }
@@ -73,7 +80,10 @@ impl Default for ServerConfig {
             host: "0.0.0.0".to_string(),
             port: 3000,
             cors_enabled: true,
-            cors_origins: vec!["*".to_string()],
+            cors_origins: vec![
+                "http://localhost:3000".to_string(),
+                "http://127.0.0.1:3000".to_string(),
+            ],
         }
     }
 }

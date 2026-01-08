@@ -21,6 +21,7 @@ services:
     environment:
       - FINCEPT_HOST=0.0.0.0
       - FINCEPT_PORT=3000
+      - FINCEPT_DATA_DIR=/app/data
       - FINCEPT_SCRIPTS_PATH=/app/resources/scripts
       - RUST_LOG=info
     volumes:

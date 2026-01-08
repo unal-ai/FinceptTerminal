@@ -354,7 +354,12 @@ impl YFinanceProviderWeb {
             }
 
             // Default fallback
-            std::path::PathBuf::from("resources/scripts").join(script_name)
+            let fallback = std::path::PathBuf::from("resources/scripts").join(script_name);
+            eprintln!(
+                "Warning: script '{}' not found in expected locations, falling back to {:?}",
+                script_name, fallback
+            );
+            fallback
         }
     }
 

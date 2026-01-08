@@ -32,7 +32,8 @@ RUN mkdir -p src/bin && \
     echo "pub fn lib() {}" > src/lib.rs
 
 # Build dependencies only (this layer will be cached)
-RUN cargo build --release --features web --bin fincept-server 2>/dev/null || true
+RUN echo "Running dummy dependency-only build for caching; failures here are acceptable and will be retried in the full build." && \
+    cargo build --release --features web --bin fincept-server || true
 
 # Remove the dummy files
 RUN rm -rf src
@@ -70,10 +71,12 @@ RUN pip install --no-cache-dir -r ./resources/requirements-numpy2.txt || \
 # Set environment variables
 ENV FINCEPT_HOST=0.0.0.0
 ENV FINCEPT_PORT=3000
+ENV FINCEPT_DATA_DIR=/app/data
 ENV FINCEPT_SCRIPTS_PATH=/app/resources/scripts
 ENV PYTHONUNBUFFERED=1
 
 # Create non-root user
+RUN mkdir -p /app/data
 RUN useradd -m -s /bin/bash fincept
 RUN chown -R fincept:fincept /app
 USER fincept

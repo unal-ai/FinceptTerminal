@@ -113,7 +113,7 @@ pub async fn dispatch(request: RpcRequest) -> RpcResponse {
         _ => {
             RpcResponse::err(format!(
                 "Command '{}' is not yet available in web mode. \
-                See /api/health for available commands.",
+                See / for API documentation and available commands.",
                 request.cmd
             ))
         }
@@ -472,7 +472,11 @@ async fn dispatch_db_get_portfolio(args: Value) -> RpcResponse {
 }
 
 async fn dispatch_db_create_portfolio(args: Value) -> RpcResponse {
-    let id = args.get("id").and_then(|v| v.as_str()).unwrap_or(&uuid::Uuid::new_v4().to_string()).to_string();
+    let id = args
+        .get("id")
+        .and_then(|v| v.as_str())
+        .map(String::from)
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
     let name = match args.get("name").and_then(|v| v.as_str()) {
         Some(n) => n.to_string(),
         None => return RpcResponse::err("Missing 'name' parameter"),

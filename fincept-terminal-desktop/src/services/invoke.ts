@@ -55,12 +55,8 @@ async function invokeWeb<T>(cmd: string, args: Record<string, unknown>): Promise
 
   const result = await response.json();
   
-  // Handle RPC response format - check for error first
-  if (result.error) {
-    throw new Error(result.error);
-  }
-  
-  if (result.success === false) {
+  // Handle RPC response format - throw on explicit error or failed success flag
+  if (result.error || result.success === false) {
     throw new Error(result.error || 'Unknown error');
   }
 

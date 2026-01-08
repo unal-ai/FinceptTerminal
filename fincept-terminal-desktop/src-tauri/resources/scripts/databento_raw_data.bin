@@ -1,0 +1,12 @@
+TradeMsg { hd: RecordHeader { ts_event: 1704101400000000000 }, instrument_id: 3403, price: 100.000, size: 1, }
+TradeMsg { hd: RecordHeader { ts_event: 1704101401000000000 }, instrument_id: 3403, price: 100.100, size: 2, }
+TradeMsg { hd: RecordHeader { ts_event: 1704101402000000000 }, instrument_id: 3403, price: 100.200, size: 3, }
+TradeMsg { hd: RecordHeader { ts_event: 1704101403000000000 }, instrument_id: 3403, price: 100.300, size: 1, }
+TradeMsg { hd: RecordHeader { ts_event: 1704101404000000000 }, instrument_id: 3403, price: 100.400, size: 2, }
+TradeMsg { hd: RecordHeader { ts_event: 1704101405000000000 }, instrument_id: 3403, price: 100.500, size: 3, }
+TradeMsg { hd: RecordHeader { ts_event: 1704101406000000000 }, instrument_id: 3403, price: 100.600, size: 1, }
+TradeMsg { hd: RecordHeader { ts_event: 1704101407000000000 }, instrument_id: 3403, price: 100.700, size: 2, }
+TradeMsg { hd: RecordHeader { ts_event: 1704101408000000000 }, instrument_id: 3403, price: 100.800, size: 3, }
+TradeMsg { hd: RecordHeader { ts_event: 1704101409000000000 }, instrument_id: 3403, price: 100.900, size: 1, }
+TradeMsg { hd: RecordHeader { ts_event: 1704101410000000000 }, instrument_id: 3403, price: 101.000, size: 2, }
+TradeMsg { hd: RecordHeader { ts_event: 1704101411000000000 }, instrument_id: 3403, price: 101.100, size: 3, }

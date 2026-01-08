@@ -1,6 +1,7 @@
 /// Test CSV data mapping and full backtest workflow
 use super::*;
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 #[tokio::test]
 async fn test_csv_to_backtest_full_workflow() {
@@ -9,8 +10,20 @@ async fn test_csv_to_backtest_full_workflow() {
     println!("========================================\n");
 
     // Step 1: Read CSV file
-    let csv_path = "C:/windowsdisk/finceptTerminal/fincept-terminal-desktop/src-tauri/resources/scripts/test_volatile_data.csv";
-    let csv_content = std::fs::read_to_string(csv_path)
+    let csv_path = std::env::var("FINCEPT_TEST_CSV").map(PathBuf::from).unwrap_or_else(|_| {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("resources")
+            .join("scripts")
+            .join("test_volatile_data.csv")
+    });
+    if !csv_path.exists() {
+        eprintln!(
+            "Skipping CSV mapping test: file not found at {:?}",
+            csv_path
+        );
+        return;
+    }
+    let csv_content = std::fs::read_to_string(&csv_path)
         .expect("Failed to read CSV file");
 
     println!("✓ Step 1: CSV file loaded ({} bytes)", csv_content.len());
