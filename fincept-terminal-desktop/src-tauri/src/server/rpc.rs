@@ -1818,7 +1818,8 @@ mod tests {
         assert!(error.contains("value"));
     }
 
-    // Note: Error handling for invalid field/operator values from database (lines 1179-1203, 1283-1294)
+    // Note: Error handling for invalid field/operator values from database
+    // (in dispatch_monitor_get_conditions and dispatch_monitor_get_alerts)
     // is integration-tested through database operations. Unit testing would require setting up
     // an in-memory database with corrupted data, which is complex and brittle. The error handling
     // logic uses ok_or_else() to convert None to descriptive errors, preventing panics when
