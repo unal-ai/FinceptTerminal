@@ -813,6 +813,18 @@ mod tests {
         let response = dispatch_ws_unsubscribe(&ws_state, args).await;
         assert!(response.error.is_some());
         assert_eq!(response.error.unwrap(), "Missing 'provider' parameter");
+        
+        // Missing symbol
+        let args = serde_json::json!({"provider": "binance", "channel": "ticker"});
+        let response = dispatch_ws_unsubscribe(&ws_state, args).await;
+        assert!(response.error.is_some());
+        assert_eq!(response.error.unwrap(), "Missing 'symbol' parameter");
+        
+        // Missing channel
+        let args = serde_json::json!({"provider": "binance", "symbol": "BTC/USD"});
+        let response = dispatch_ws_unsubscribe(&ws_state, args).await;
+        assert!(response.error.is_some());
+        assert_eq!(response.error.unwrap(), "Missing 'channel' parameter");
     }
 
     #[tokio::test]

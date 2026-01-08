@@ -210,7 +210,7 @@ async fn ws_handler(
 async fn handle_ws(socket: WebSocket, state: Arc<ServerState>) {
     let (mut sender, mut receiver) = socket.split();
     // Use bounded channel with reasonable buffer size (1000 messages)
-    // If client is slow, oldest messages will be dropped to prevent memory growth
+    // If client is slow and channel becomes full, new messages will be dropped to prevent memory growth
     let (tx, mut rx) = tokio::sync::mpsc::channel::<Message>(1000);
 
     let (mut ticker_rx, mut orderbook_rx, mut trade_rx, mut candle_rx, mut status_rx) = {
@@ -330,7 +330,10 @@ async fn handle_ws(socket: WebSocket, state: Arc<ServerState>) {
                 // Use try_send to avoid blocking like other message handlers
                 match tx.try_send(Message::Pong(data)) {
                     Ok(_) => {}
-                    Err(_) => break, // Channel full or closed, disconnect
+                    Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
+                        tracing::warn!("WebSocket channel full, dropping ping/pong message");
+                    }
+                    Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => break,
                 }
             }
             Ok(Message::Pong(_)) => {
