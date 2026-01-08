@@ -732,6 +732,8 @@ fn execute_python_script(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    use crate::generate_handler_from_list;
+
     // Initialize high-performance Rust SQLite database
     // CRITICAL: Database is required for paper trading and other core features
     if let Err(e) = tokio::runtime::Runtime::new().unwrap().block_on(database::initialize()) {
@@ -852,9 +854,9 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![
-            crate::for_each_tauri_command!(tauri_command_handler_list)
-        ])
+        .invoke_handler(
+            crate::for_each_tauri_command!(generate_handler_from_list)
+        )
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

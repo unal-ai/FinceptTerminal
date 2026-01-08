@@ -996,7 +996,7 @@ macro_rules! for_each_tauri_command {
             commands::database::db_get_excel_snapshots,
             commands::database::db_delete_excel_snapshot
         
-        );
+        )
     };
 }
 
@@ -1020,4 +1020,11 @@ pub fn is_known_command(command: &str) -> bool {
     TAURI_COMMAND_PATHS.iter().any(|path| {
         path.rsplit("::").next().map_or(false, |name| name == command)
     })
+}
+
+#[macro_export]
+macro_rules! generate_handler_from_list {
+    ($($handler:path),* $(,)?) => {
+        tauri::generate_handler![$($handler),*]
+    };
 }

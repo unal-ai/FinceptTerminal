@@ -2744,6 +2744,8 @@ mod tests {
         // Should always return ok as it's a no-op acknowledgment
         assert!(response.error.is_none());
         assert!(response.result.is_some());
+    }
+
     // SECURITY VALIDATION TESTS
 
     #[test]
