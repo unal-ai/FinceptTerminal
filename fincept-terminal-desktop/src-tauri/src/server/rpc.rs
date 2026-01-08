@@ -1562,19 +1562,19 @@ async fn dispatch_db_delete_data_source(args: Value) -> RpcResponse {
 // ============================================================================
 
 async fn dispatch_db_list_portfolios() -> RpcResponse {
-    match crate::database::operations::get_all_portfolios() {
+    match crate::database::paper_trading::list_portfolios() {
         Ok(portfolios) => RpcResponse::ok(portfolios),
         Err(e) => RpcResponse::err(e.to_string()),
     }
 }
 
 async fn dispatch_db_get_portfolio(args: Value) -> RpcResponse {
-    let portfolio_id = match args.get("portfolioId").or(args.get("portfolio_id")).and_then(|v| v.as_str()) {
+    let portfolio_id = match args.get("id").or(args.get("portfolioId")).or(args.get("portfolio_id")).and_then(|v| v.as_str()) {
         Some(i) => i.to_string(),
-        None => return RpcResponse::err("Missing 'portfolioId' parameter"),
+        None => return RpcResponse::err("Missing 'id' or 'portfolioId' parameter"),
     };
 
-    match crate::database::operations::get_portfolio_by_id(&portfolio_id) {
+    match crate::database::paper_trading::get_portfolio(&portfolio_id) {
         Ok(portfolio) => RpcResponse::ok(portfolio),
         Err(e) => RpcResponse::err(e.to_string()),
     }
@@ -1590,23 +1590,53 @@ async fn dispatch_db_create_portfolio(args: Value) -> RpcResponse {
         Some(n) => n.to_string(),
         None => return RpcResponse::err("Missing 'name' parameter"),
     };
-    let owner = args.get("owner").and_then(|v| v.as_str()).unwrap_or("default").to_string();
+    let provider = match args.get("provider").and_then(|v| v.as_str()) {
+        Some(p) => p.to_string(),
+        None => return RpcResponse::err("Missing 'provider' parameter"),
+    };
+    let initial_balance = match args
+        .get("initialBalance")
+        .or(args.get("initial_balance"))
+        .and_then(|v| v.as_f64())
+    {
+        Some(value) => value,
+        None => return RpcResponse::err("Missing 'initialBalance' parameter"),
+    };
     let currency = args.get("currency").and_then(|v| v.as_str()).unwrap_or("USD").to_string();
-    let description = args.get("description").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let margin_mode = args
+        .get("marginMode")
+        .or(args.get("margin_mode"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("cross")
+        .to_string();
+    let leverage = args.get("leverage").and_then(|v| v.as_f64()).unwrap_or(1.0);
 
-    match crate::database::operations::create_portfolio(&id, &name, &owner, &currency, description.as_deref()) {
-        Ok(_) => RpcResponse::ok(serde_json::json!({"id": id, "created": true})),
+    match crate::database::paper_trading::create_portfolio(
+        &id,
+        &name,
+        &provider,
+        initial_balance,
+        &currency,
+        &margin_mode,
+        leverage,
+    ) {
+        Ok(portfolio) => RpcResponse::ok(portfolio),
         Err(e) => RpcResponse::err(e.to_string()),
     }
 }
 
 async fn dispatch_db_delete_portfolio(args: Value) -> RpcResponse {
-    let portfolio_id = match args.get("portfolioId").or(args.get("portfolio_id")).and_then(|v| v.as_str()) {
+    let portfolio_id = match args
+        .get("id")
+        .or(args.get("portfolioId"))
+        .or(args.get("portfolio_id"))
+        .and_then(|v| v.as_str())
+    {
         Some(i) => i.to_string(),
-        None => return RpcResponse::err("Missing 'portfolioId' parameter"),
+        None => return RpcResponse::err("Missing 'id' or 'portfolioId' parameter"),
     };
 
-    match crate::database::operations::delete_portfolio(&portfolio_id) {
+    match crate::database::paper_trading::delete_portfolio(&portfolio_id) {
         Ok(_) => RpcResponse::ok(serde_json::json!({"deleted": true})),
         Err(e) => RpcResponse::err(e.to_string()),
     }

@@ -546,12 +546,49 @@ async fn index_handler() -> impl IntoResponse {
     </div>
 
     <div class="category">
-        <p class="category-title">💼 Portfolios</p>
+        <p class="category-title">💼 Paper Trading Portfolios</p>
         <ul>
             <li><code>db_list_portfolios</code> - List all portfolios</li>
             <li><code>db_get_portfolio</code> - Get portfolio by ID</li>
             <li><code>db_create_portfolio</code> - Create new portfolio</li>
             <li><code>db_delete_portfolio</code> - Delete a portfolio</li>
+            <li><code>db_update_portfolio_balance</code> - Update portfolio balance</li>
+        </ul>
+    </div>
+
+    <div class="category">
+        <p class="category-title">📌 Paper Trading Positions</p>
+        <ul>
+            <li><code>db_create_position</code> - Create a position</li>
+            <li><code>db_get_position</code> - Get position by ID</li>
+            <li><code>db_get_position_by_symbol</code> - Get open/closed position by symbol</li>
+            <li><code>db_get_position_by_symbol_and_side</code> - Get position by symbol and side</li>
+            <li><code>db_get_portfolio_positions</code> - List positions by portfolio</li>
+            <li><code>db_update_position</code> - Update position fields</li>
+            <li><code>db_delete_position</code> - Delete a position</li>
+        </ul>
+    </div>
+
+    <div class="category">
+        <p class="category-title">🧾 Paper Trading Orders</p>
+        <ul>
+            <li><code>db_create_order</code> - Create an order</li>
+            <li><code>db_get_order</code> - Get order by ID</li>
+            <li><code>db_get_portfolio_orders</code> - List orders by portfolio</li>
+            <li><code>db_get_pending_orders</code> - List pending/triggered orders</li>
+            <li><code>db_update_order</code> - Update order fields</li>
+            <li><code>db_delete_order</code> - Delete an order</li>
+        </ul>
+    </div>
+
+    <div class="category">
+        <p class="category-title">💱 Paper Trading Trades</p>
+        <ul>
+            <li><code>db_create_trade</code> - Create a trade</li>
+            <li><code>db_get_trade</code> - Get trade by ID</li>
+            <li><code>db_get_portfolio_trades</code> - List trades by portfolio</li>
+            <li><code>db_get_order_trades</code> - List trades by order</li>
+            <li><code>db_delete_trade</code> - Delete a trade</li>
         </ul>
     </div>
 
@@ -595,7 +632,7 @@ async fn index_handler() -> impl IntoResponse {
     <h3>Create Portfolio</h3>
     <pre>curl -X POST http://localhost:3000/api/rpc \
   -H 'Content-Type: application/json' \
-  -d '{"cmd": "db_create_portfolio", "args": {"name": "Main Portfolio", "currency": "USD"}}'</pre>
+  -d '{"cmd": "db_create_portfolio", "args": {"id": "portfolio-1", "name": "Main Portfolio", "provider": "paper", "initialBalance": 100000, "currency": "USD", "marginMode": "cross", "leverage": 1}}'</pre>
     
     <p><em>Version: {{VERSION}}</em></p>
 </body>
