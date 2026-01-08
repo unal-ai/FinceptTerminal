@@ -1145,7 +1145,13 @@ async fn dispatch_monitor_add_condition(
     let id = conn.last_insert_rowid();
 
     let services = state.services.read().await;
-    let _ = services.monitoring.load_conditions().await;
+    if let Err(e) = services.monitoring.load_conditions().await {
+        eprintln!(
+            "Failed to reload monitor conditions after inserting condition with id {}: {}",
+            id,
+            e
+        );
+    }
 
     RpcResponse::ok(id)
 }
@@ -1170,18 +1176,32 @@ async fn dispatch_monitor_get_conditions() -> RpcResponse {
     };
 
     let conditions = match stmt.query_map([], |row| {
+        let field_str: String = row.get(3)?;
+        let field = crate::websocket::services::monitoring::MonitorField::from_str(&field_str)
+            .ok_or_else(|| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    3,
+                    rusqlite::types::Type::Text,
+                    Box::new(std::fmt::Error),
+                )
+            })?;
+
+        let operator_str: String = row.get(4)?;
+        let operator = crate::websocket::services::monitoring::MonitorOperator::from_str(&operator_str)
+            .ok_or_else(|| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    4,
+                    rusqlite::types::Type::Text,
+                    Box::new(std::fmt::Error),
+                )
+            })?;
+
         Ok(crate::websocket::services::monitoring::MonitorCondition {
             id: Some(row.get(0)?),
             provider: row.get(1)?,
             symbol: row.get(2)?,
-            field: crate::websocket::services::monitoring::MonitorField::from_str(
-                &row.get::<_, String>(3)?,
-            )
-            .unwrap(),
-            operator: crate::websocket::services::monitoring::MonitorOperator::from_str(
-                &row.get::<_, String>(4)?,
-            )
-            .unwrap(),
+            field,
+            operator,
             value: row.get(5)?,
             value2: row.get(6)?,
             enabled: row.get::<_, i32>(7)? == 1,
@@ -1254,15 +1274,22 @@ async fn dispatch_monitor_get_alerts(args: Value) -> RpcResponse {
     };
 
     let alerts = match stmt.query_map(params![limit], |row| {
+        let field_str: String = row.get(4)?;
+        let field = crate::websocket::services::monitoring::MonitorField::from_str(&field_str)
+            .ok_or_else(|| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    4,
+                    rusqlite::types::Type::Text,
+                    Box::new(std::fmt::Error),
+                )
+            })?;
+
         Ok(crate::websocket::services::monitoring::MonitorAlert {
             id: Some(row.get(0)?),
             condition_id: row.get(1)?,
             provider: row.get(2)?,
             symbol: row.get(3)?,
-            field: crate::websocket::services::monitoring::MonitorField::from_str(
-                &row.get::<_, String>(4)?,
-            )
-            .unwrap(),
+            field,
             triggered_value: row.get(5)?,
             triggered_at: row.get::<_, i64>(6)? as u64,
         })
