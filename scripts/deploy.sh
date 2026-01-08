@@ -27,6 +27,9 @@ ensure_uv() {
     # WARNING: This downloads and executes a remote installer script without verification.
     # For production use, consider installing uv via a package manager or verifying
     # the installer against a pinned checksum/signature to mitigate supply-chain risks.
+    echo "WARNING: This will download and execute the uv remote installer script without verification."
+    echo "         For production use, install uv via a trusted package manager or verify the"
+    echo "         installer against a pinned checksum or signature to mitigate supply-chain risks."
     curl -LsSf https://astral.sh/uv/install.sh | sh
     export PATH="$HOME/.cargo/bin:$PATH"
   fi

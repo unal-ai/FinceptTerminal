@@ -81,7 +81,10 @@ pub async fn run_server(config: ServerConfig) -> Result<(), Box<dyn std::error::
             let allow_origin = if allowed_origins.is_empty() {
                 // Fallback: no valid origins configured, treat as wildcard to avoid
                 // silently denying all cross-origin requests with CORS enabled.
-                eprintln!("WARNING: No valid CORS origins configured. Using wildcard (*) which allows requests from any origin. This is a security risk in production environments.");
+                tracing::warn!(
+                    "No valid CORS origins configured. Using wildcard (*) which allows requests from any origin. \
+                     This is a security risk in production environments."
+                );
                 AllowOrigin::any()
             } else {
                 AllowOrigin::list(allowed_origins)
