@@ -1338,4 +1338,152 @@ mod tests {
         // Should return an error for invalid config format
         assert!(response.error.is_some());
     }
+
+    // ============================================================================
+    // MCP DISPATCH FUNCTION TESTS
+    // ============================================================================
+
+    fn create_test_mcp_state() -> Arc<crate::MCPState> {
+        Arc::new(std::sync::Mutex::new(std::collections::HashMap::new()))
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_spawn_mcp_server_missing_server_id() {
+        let mcp_state = create_test_mcp_state();
+        let args = serde_json::json!({"command": "npx"});
+        
+        let response = dispatch_spawn_mcp_server(&mcp_state, args).await;
+        
+        assert!(response.error.is_some());
+        assert_eq!(response.error.unwrap(), "Missing 'serverId' parameter");
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_spawn_mcp_server_missing_command() {
+        let mcp_state = create_test_mcp_state();
+        let args = serde_json::json!({"serverId": "test-server"});
+        
+        let response = dispatch_spawn_mcp_server(&mcp_state, args).await;
+        
+        assert!(response.error.is_some());
+        assert_eq!(response.error.unwrap(), "Missing 'command' parameter");
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_spawn_mcp_server_invalid_args_parameter() {
+        let mcp_state = create_test_mcp_state();
+        // Pass invalid args - should be an array, not a string
+        let args = serde_json::json!({
+            "serverId": "test-server",
+            "command": "npx",
+            "args": "not-an-array"
+        });
+        
+        let response = dispatch_spawn_mcp_server(&mcp_state, args).await;
+        
+        assert!(response.error.is_some());
+        let error_msg = response.error.unwrap();
+        assert!(error_msg.contains("Invalid 'args' parameter"));
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_spawn_mcp_server_invalid_env_parameter() {
+        let mcp_state = create_test_mcp_state();
+        // Pass invalid env - should be an object/map, not an array
+        let args = serde_json::json!({
+            "serverId": "test-server",
+            "command": "npx",
+            "env": ["not", "a", "map"]
+        });
+        
+        let response = dispatch_spawn_mcp_server(&mcp_state, args).await;
+        
+        assert!(response.error.is_some());
+        let error_msg = response.error.unwrap();
+        assert!(error_msg.contains("Invalid 'env' parameter"));
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_spawn_mcp_server_supports_snake_case() {
+        let mcp_state = create_test_mcp_state();
+        // Test that server_id (snake_case) works in addition to serverId (camelCase)
+        let args = serde_json::json!({
+            "server_id": "test-server",
+            "command": "npx"
+        });
+        
+        let response = dispatch_spawn_mcp_server(&mcp_state, args).await;
+        
+        // Should not fail due to missing serverId parameter
+        // (may fail for other reasons like missing binary, but that's expected)
+        if let Some(err) = response.error {
+            assert!(!err.contains("Missing 'serverId' parameter"));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_send_mcp_request_missing_server_id() {
+        let mcp_state = create_test_mcp_state();
+        let args = serde_json::json!({"request": "test-request"});
+        
+        let response = dispatch_send_mcp_request(&mcp_state, args).await;
+        
+        assert!(response.error.is_some());
+        assert_eq!(response.error.unwrap(), "Missing 'serverId' parameter");
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_send_mcp_request_missing_request() {
+        let mcp_state = create_test_mcp_state();
+        let args = serde_json::json!({"serverId": "test-server"});
+        
+        let response = dispatch_send_mcp_request(&mcp_state, args).await;
+        
+        assert!(response.error.is_some());
+        assert_eq!(response.error.unwrap(), "Missing 'request' parameter");
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_send_mcp_notification_missing_server_id() {
+        let mcp_state = create_test_mcp_state();
+        let args = serde_json::json!({"notification": "test-notification"});
+        
+        let response = dispatch_send_mcp_notification(&mcp_state, args).await;
+        
+        assert!(response.error.is_some());
+        assert_eq!(response.error.unwrap(), "Missing 'serverId' parameter");
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_send_mcp_notification_missing_notification() {
+        let mcp_state = create_test_mcp_state();
+        let args = serde_json::json!({"serverId": "test-server"});
+        
+        let response = dispatch_send_mcp_notification(&mcp_state, args).await;
+        
+        assert!(response.error.is_some());
+        assert_eq!(response.error.unwrap(), "Missing 'notification' parameter");
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_ping_mcp_server_missing_server_id() {
+        let mcp_state = create_test_mcp_state();
+        let args = serde_json::json!({});
+        
+        let response = dispatch_ping_mcp_server(&mcp_state, args).await;
+        
+        assert!(response.error.is_some());
+        assert_eq!(response.error.unwrap(), "Missing 'serverId' parameter");
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_kill_mcp_server_missing_server_id() {
+        let mcp_state = create_test_mcp_state();
+        let args = serde_json::json!({});
+        
+        let response = dispatch_kill_mcp_server(&mcp_state, args).await;
+        
+        assert!(response.error.is_some());
+        assert_eq!(response.error.unwrap(), "Missing 'serverId' parameter");
+    }
 }
