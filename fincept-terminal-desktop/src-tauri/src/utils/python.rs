@@ -249,12 +249,8 @@ fn get_install_dir_for_runtime(app: Option<&tauri::AppHandle>) -> Result<PathBuf
 
     let base_dir = if cfg!(target_os = "windows") {
         std::env::var("APPDATA")
+            .or_else(|_| std::env::var("PROGRAMDATA").map(|p| format!("{}\\fincept", p)))
             .map(PathBuf::from)
-            .or_else(|_| {
-                std::env::var("PROGRAMDATA")
-                    .map(PathBuf::from)
-                    .map(|p| p.join("fincept"))
-            })
             .unwrap_or_else(|_| PathBuf::from("C:\\ProgramData\\fincept"))
     } else if cfg!(target_os = "macos") {
         std::env::var("HOME")
