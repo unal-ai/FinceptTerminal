@@ -78,19 +78,19 @@ pub async fn run_server(config: ServerConfig) -> Result<(), Box<dyn std::error::
                 .filter_map(|origin| HeaderValue::from_str(origin).ok())
                 .collect();
             
-            if allowed_origins.is_empty() {
+            let allow_origin = if allowed_origins.is_empty() {
                 // Fallback: no valid origins configured, treat as wildcard to avoid
                 // silently denying all cross-origin requests with CORS enabled.
-                CorsLayer::new()
-                    .allow_origin(Any)
-                    .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
-                    .allow_headers(Any)
+                eprintln!("WARNING: No valid CORS origins configured. Using wildcard (*) which allows requests from any origin. This is a security risk in production environments.");
+                AllowOrigin::any()
             } else {
-                CorsLayer::new()
-                    .allow_origin(AllowOrigin::list(allowed_origins))
-                    .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
-                    .allow_headers(Any)
-            }
+                AllowOrigin::list(allowed_origins)
+            };
+            
+            CorsLayer::new()
+                .allow_origin(allow_origin)
+                .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
+                .allow_headers(Any)
         };
 
         app.layer(cors)

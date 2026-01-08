@@ -23,7 +23,7 @@ export default defineConfig({
       FINCEPT_PORT: '3000',
       FINCEPT_DATA_DIR: dataDir,
       FINCEPT_SCRIPTS_PATH: path.join(tauriDir, 'resources', 'scripts'),
-      FINCEPT_PYTHON_PATH: process.env.FINCEPT_PYTHON_PATH,
+      ...(process.env.FINCEPT_PYTHON_PATH && { FINCEPT_PYTHON_PATH: process.env.FINCEPT_PYTHON_PATH }),
     },
   },
 });
