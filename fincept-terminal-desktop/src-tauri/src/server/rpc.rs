@@ -1818,6 +1818,12 @@ mod tests {
         assert!(error.contains("value"));
     }
 
+    // Note: Error handling for invalid field/operator values from database (lines 1179-1203, 1283-1294)
+    // is integration-tested through database operations. Unit testing would require setting up
+    // an in-memory database with corrupted data, which is complex and brittle. The error handling
+    // logic uses ok_or_else() to convert None to descriptive errors, preventing panics when
+    // MonitorField::from_str() or MonitorOperator::from_str() return None.
+
     #[tokio::test]
     async fn test_dispatch_monitor_delete_condition_missing_id() {
         let ws_state = create_test_ws_state();
