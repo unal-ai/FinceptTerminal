@@ -37,6 +37,71 @@ pub async fn dispatch(state: Arc<ServerState>, request: RpcRequest) -> RpcRespon
         "get_financials" => dispatch_financials(args).await,
 
         // ============================================================================
+        // NEWS COMMANDS
+        // ============================================================================
+        "fetch_all_rss_news" => dispatch_fetch_all_rss_news().await,
+        "get_rss_feed_count" => dispatch_get_rss_feed_count().await,
+        "get_active_sources" => dispatch_get_active_sources().await,
+
+        // ============================================================================
+        // PYTHON DATA SOURCES
+        // ============================================================================
+        "execute_polygon_command" => dispatch_execute_polygon_command(args).await,
+        "execute_yfinance_command" => dispatch_execute_yfinance_command(args).await,
+        "execute_edgar_command" => dispatch_execute_edgar_command(args).await,
+        "execute_alphavantage_command" => dispatch_execute_alphavantage_command(args).await,
+        "get_alphavantage_quote" => dispatch_get_alphavantage_quote(args).await,
+        "get_alphavantage_daily" => dispatch_get_alphavantage_daily(args).await,
+        "get_alphavantage_intraday" => dispatch_get_alphavantage_intraday(args).await,
+        "get_alphavantage_overview" => dispatch_get_alphavantage_overview(args).await,
+        "search_alphavantage_symbols" => dispatch_search_alphavantage_symbols(args).await,
+        "get_alphavantage_comprehensive" => dispatch_get_alphavantage_comprehensive(args).await,
+        "get_alphavantage_market_movers" => dispatch_get_alphavantage_market_movers().await,
+
+        // ============================================================================
+        // PMDARIMA COMMANDS
+        // ============================================================================
+        "pmdarima_fit_auto_arima" => dispatch_pmdarima_fit_auto_arima(args).await,
+        "pmdarima_forecast_auto_arima" => dispatch_pmdarima_forecast_auto_arima(args).await,
+        "pmdarima_forecast_arima" => dispatch_pmdarima_forecast_arima(args).await,
+        "pmdarima_boxcox_transform" => dispatch_pmdarima_boxcox_transform(args).await,
+        "pmdarima_inverse_boxcox" => dispatch_pmdarima_inverse_boxcox(args).await,
+        "pmdarima_calculate_acf" => dispatch_pmdarima_calculate_acf(args).await,
+        "pmdarima_calculate_pacf" => dispatch_pmdarima_calculate_pacf(args).await,
+        "pmdarima_decompose_timeseries" => dispatch_pmdarima_decompose_timeseries(args).await,
+        "pmdarima_cross_validate" => dispatch_pmdarima_cross_validate(args).await,
+
+        // ============================================================================
+        // GOVERNMENT & MACRO COMMANDS
+        // ============================================================================
+        "execute_government_us_command" => dispatch_execute_government_us_command(args).await,
+        "get_treasury_prices" => dispatch_get_treasury_prices(args).await,
+        "get_treasury_auctions" => dispatch_get_treasury_auctions(args).await,
+        "get_comprehensive_treasury_data" => dispatch_get_comprehensive_treasury_data(args).await,
+        "get_treasury_summary" => dispatch_get_treasury_summary(args).await,
+        "execute_congress_gov_command" => dispatch_execute_congress_gov_command(args).await,
+        "get_congress_bills" => dispatch_get_congress_bills(args).await,
+        "get_bill_info" => dispatch_get_bill_info(args).await,
+        "get_bill_text" => dispatch_get_bill_text(args).await,
+        "download_bill_text" => dispatch_download_bill_text(args).await,
+        "get_comprehensive_bill_data" => dispatch_get_comprehensive_bill_data(args).await,
+        "get_bill_summary_by_congress" => dispatch_get_bill_summary_by_congress(args).await,
+        "execute_oecd_command" => dispatch_execute_oecd_command(args).await,
+        "get_oecd_gdp_real" => dispatch_get_oecd_gdp_real(args).await,
+        "get_oecd_consumer_price_index" => dispatch_get_oecd_consumer_price_index(args).await,
+        "get_oecd_gdp_forecast" => dispatch_get_oecd_gdp_forecast(args).await,
+        "get_oecd_unemployment" => dispatch_get_oecd_unemployment(args).await,
+        "get_oecd_economic_summary" => dispatch_get_oecd_economic_summary(args).await,
+        "get_oecd_country_list" => dispatch_get_oecd_country_list().await,
+        "execute_imf_command" => dispatch_execute_imf_command(args).await,
+        "get_imf_economic_indicators" => dispatch_get_imf_economic_indicators(args).await,
+        "get_imf_direction_of_trade" => dispatch_get_imf_direction_of_trade(args).await,
+        "get_imf_available_indicators" => dispatch_get_imf_available_indicators().await,
+        "get_imf_comprehensive_economic_data" => dispatch_get_imf_comprehensive_economic_data(args).await,
+        "get_imf_reserves_data" => dispatch_get_imf_reserves_data(args).await,
+        "get_imf_trade_summary" => dispatch_get_imf_trade_summary(args).await,
+
+        // ============================================================================
         // DATABASE HEALTH & SETTINGS COMMANDS
         // ============================================================================
         "db_check_health" => dispatch_db_health().await,
@@ -175,11 +240,19 @@ pub async fn dispatch(state: Arc<ServerState>, request: RpcRequest) -> RpcRespon
         // CATCH-ALL FOR UNIMPLEMENTED COMMANDS
         // ============================================================================
         _ => {
-            RpcResponse::err(format!(
-                "Command '{}' is not yet available in web mode. \
-                See / for API documentation and available commands.",
-                request.cmd
-            ))
+            if crate::command_registry::is_known_command(request.cmd.as_str()) {
+                RpcResponse::err(format!(
+                    "Command '{}' is not yet available in web mode. \
+                    See / for API documentation and available commands.",
+                    request.cmd
+                ))
+            } else {
+                RpcResponse::err(format!(
+                    "Command '{}' is not recognized. \
+                    See / for API documentation and available commands.",
+                    request.cmd
+                ))
+            }
         }
     }
 }
@@ -383,6 +456,866 @@ async fn dispatch_financials(args: Value) -> RpcResponse {
 
     match crate::data_sources::yfinance::YFinanceProviderWeb::get_financials(&symbol).await {
         Ok(financials) => RpcResponse::ok(financials),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+// ============================================================================
+// NEWS DISPATCH FUNCTIONS
+// ============================================================================
+
+async fn dispatch_fetch_all_rss_news() -> RpcResponse {
+    match crate::commands::news::fetch_all_rss_news().await {
+        Ok(articles) => RpcResponse::ok(articles),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_get_rss_feed_count() -> RpcResponse {
+    RpcResponse::ok(crate::commands::news::get_rss_feed_count())
+}
+
+async fn dispatch_get_active_sources() -> RpcResponse {
+    RpcResponse::ok(crate::commands::news::get_active_sources())
+}
+
+// ============================================================================
+// PYTHON SCRIPT DISPATCH HELPERS
+// ============================================================================
+
+fn execute_python_script_runtime(script_name: &str, args: Vec<String>) -> Result<String, String> {
+    let script_path = crate::utils::python::get_script_path_for_runtime(None, script_name)?;
+    crate::python_runtime::execute_python_script(&script_path, args)
+}
+
+fn execute_python_command_runtime(
+    script_name: &str,
+    command: &str,
+    args: Vec<String>,
+) -> Result<String, String> {
+    let mut cmd_args = vec![command.to_string()];
+    cmd_args.extend(args);
+    execute_python_script_runtime(script_name, cmd_args)
+}
+
+fn get_required_string(args: &Value, key: &str) -> Result<String, String> {
+    args.get(key)
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .ok_or_else(|| format!("Missing '{}' parameter", key))
+}
+
+fn get_optional_string(args: &Value, key: &str) -> Option<String> {
+    args.get(key).and_then(|v| v.as_str()).map(|s| s.to_string())
+}
+
+fn get_optional_i32(args: &Value, key: &str) -> Option<i32> {
+    args.get(key).and_then(|v| v.as_i64()).map(|v| v as i32)
+}
+
+fn get_optional_bool(args: &Value, key: &str) -> Option<bool> {
+    args.get(key).and_then(|v| v.as_bool())
+}
+
+fn get_string_list(args: &Value, key: &str) -> Result<Vec<String>, String> {
+    match args.get(key) {
+        Some(value) => serde_json::from_value(value.clone())
+            .map_err(|e| format!("Invalid '{}' parameter: {}", key, e)),
+        None => Ok(Vec::new()),
+    }
+}
+
+// ============================================================================
+// PYTHON DATA SOURCE DISPATCH FUNCTIONS
+// ============================================================================
+
+async fn dispatch_execute_polygon_command(args: Value) -> RpcResponse {
+    let command = match get_required_string(&args, "command") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
+    };
+    let command_args = match get_string_list(&args, "args") {
+        Ok(list) => list,
+        Err(e) => return RpcResponse::err(e),
+    };
+    if let Some(api_key) = get_optional_string(&args, "apiKey").or_else(|| get_optional_string(&args, "api_key")) {
+        std::env::set_var("POLYGON_API_KEY", api_key);
+    }
+
+    match execute_python_command_runtime("polygon_data.py", &command, command_args) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_execute_yfinance_command(args: Value) -> RpcResponse {
+    let command = match get_required_string(&args, "command") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
+    };
+    let command_args = match get_string_list(&args, "args") {
+        Ok(list) => list,
+        Err(e) => return RpcResponse::err(e),
+    };
+
+    match execute_python_command_runtime("yfinance_data.py", &command, command_args) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_execute_edgar_command(args: Value) -> RpcResponse {
+    let command = match get_required_string(&args, "command") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
+    };
+    let command_args = match get_string_list(&args, "args") {
+        Ok(list) => list,
+        Err(e) => return RpcResponse::err(e),
+    };
+
+    match execute_python_command_runtime("edgar_tools.py", &command, command_args) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_execute_alphavantage_command(args: Value) -> RpcResponse {
+    let command = match get_required_string(&args, "command") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
+    };
+    let command_args = match get_string_list(&args, "args") {
+        Ok(list) => list,
+        Err(e) => return RpcResponse::err(e),
+    };
+
+    match execute_python_command_runtime("alphavantage_data.py", &command, command_args) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_get_alphavantage_quote(args: Value) -> RpcResponse {
+    let symbol = match get_required_string(&args, "symbol") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
+    };
+
+    match execute_python_command_runtime("alphavantage_data.py", "quote", vec![symbol]) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_get_alphavantage_daily(args: Value) -> RpcResponse {
+    let symbol = match get_required_string(&args, "symbol") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
+    };
+    let mut cmd_args = vec![symbol];
+    if let Some(outputsize) = get_optional_string(&args, "outputsize") {
+        cmd_args.push(outputsize);
+    }
+
+    match execute_python_command_runtime("alphavantage_data.py", "daily", cmd_args) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_get_alphavantage_intraday(args: Value) -> RpcResponse {
+    let symbol = match get_required_string(&args, "symbol") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
+    };
+    let mut cmd_args = vec![symbol];
+    if let Some(interval) = get_optional_string(&args, "interval") {
+        cmd_args.push(interval);
+    }
+
+    match execute_python_command_runtime("alphavantage_data.py", "intraday", cmd_args) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_get_alphavantage_overview(args: Value) -> RpcResponse {
+    let symbol = match get_required_string(&args, "symbol") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
+    };
+
+    match execute_python_command_runtime("alphavantage_data.py", "overview", vec![symbol]) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_search_alphavantage_symbols(args: Value) -> RpcResponse {
+    let keywords = match get_required_string(&args, "keywords") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
+    };
+
+    match execute_python_command_runtime("alphavantage_data.py", "search", vec![keywords]) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_get_alphavantage_comprehensive(args: Value) -> RpcResponse {
+    let symbol = match get_required_string(&args, "symbol") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
+    };
+
+    match execute_python_command_runtime("alphavantage_data.py", "comprehensive", vec![symbol]) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_get_alphavantage_market_movers() -> RpcResponse {
+    match execute_python_command_runtime("alphavantage_data.py", "market_movers", Vec::new()) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+// ============================================================================
+// PMDARIMA DISPATCH FUNCTIONS
+// ============================================================================
+
+async fn dispatch_pmdarima_fit_auto_arima(args: Value) -> RpcResponse {
+    let data: Vec<f64> = match args.get("data").cloned() {
+        Some(value) => serde_json::from_value(value).unwrap_or_default(),
+        None => return RpcResponse::err("Missing 'data' parameter"),
+    };
+
+    match crate::commands::pmdarima::pmdarima_fit_auto_arima(
+        data,
+        get_optional_bool(&args, "seasonal"),
+        get_optional_i32(&args, "m"),
+        get_optional_i32(&args, "max_p"),
+        get_optional_i32(&args, "max_q"),
+    )
+    .await
+    {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_pmdarima_forecast_auto_arima(args: Value) -> RpcResponse {
+    let data: Vec<f64> = match args.get("data").cloned() {
+        Some(value) => serde_json::from_value(value).unwrap_or_default(),
+        None => return RpcResponse::err("Missing 'data' parameter"),
+    };
+    let n_periods = match get_optional_i32(&args, "n_periods") {
+        Some(value) => value,
+        None => return RpcResponse::err("Missing 'n_periods' parameter"),
+    };
+
+    match crate::commands::pmdarima::pmdarima_forecast_auto_arima(
+        data,
+        n_periods,
+        get_optional_bool(&args, "seasonal"),
+        get_optional_bool(&args, "return_conf_int"),
+        args.get("alpha").and_then(|v| v.as_f64()),
+    )
+    .await
+    {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_pmdarima_forecast_arima(args: Value) -> RpcResponse {
+    let data: Vec<f64> = match args.get("data").cloned() {
+        Some(value) => serde_json::from_value(value).unwrap_or_default(),
+        None => return RpcResponse::err("Missing 'data' parameter"),
+    };
+    let p = match get_optional_i32(&args, "p") {
+        Some(value) => value,
+        None => return RpcResponse::err("Missing 'p' parameter"),
+    };
+    let d = match get_optional_i32(&args, "d") {
+        Some(value) => value,
+        None => return RpcResponse::err("Missing 'd' parameter"),
+    };
+    let q = match get_optional_i32(&args, "q") {
+        Some(value) => value,
+        None => return RpcResponse::err("Missing 'q' parameter"),
+    };
+    let n_periods = match get_optional_i32(&args, "n_periods") {
+        Some(value) => value,
+        None => return RpcResponse::err("Missing 'n_periods' parameter"),
+    };
+
+    match crate::commands::pmdarima::pmdarima_forecast_arima(
+        data,
+        p,
+        d,
+        q,
+        n_periods,
+        get_optional_bool(&args, "return_conf_int"),
+        args.get("alpha").and_then(|v| v.as_f64()),
+    )
+    .await
+    {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_pmdarima_boxcox_transform(args: Value) -> RpcResponse {
+    let data: Vec<f64> = match args.get("data").cloned() {
+        Some(value) => serde_json::from_value(value).unwrap_or_default(),
+        None => return RpcResponse::err("Missing 'data' parameter"),
+    };
+
+    match crate::commands::pmdarima::pmdarima_boxcox_transform(data).await {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_pmdarima_inverse_boxcox(args: Value) -> RpcResponse {
+    let data: Vec<f64> = match args.get("data").cloned() {
+        Some(value) => serde_json::from_value(value).unwrap_or_default(),
+        None => return RpcResponse::err("Missing 'data' parameter"),
+    };
+    let lambda = match args.get("lambda").and_then(|v| v.as_f64()) {
+        Some(value) => value,
+        None => return RpcResponse::err("Missing 'lambda' parameter"),
+    };
+
+    match crate::commands::pmdarima::pmdarima_inverse_boxcox(data, lambda).await {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_pmdarima_calculate_acf(args: Value) -> RpcResponse {
+    let data: Vec<f64> = match args.get("data").cloned() {
+        Some(value) => serde_json::from_value(value).unwrap_or_default(),
+        None => return RpcResponse::err("Missing 'data' parameter"),
+    };
+
+    match crate::commands::pmdarima::pmdarima_calculate_acf(data, get_optional_i32(&args, "nlags")).await {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_pmdarima_calculate_pacf(args: Value) -> RpcResponse {
+    let data: Vec<f64> = match args.get("data").cloned() {
+        Some(value) => serde_json::from_value(value).unwrap_or_default(),
+        None => return RpcResponse::err("Missing 'data' parameter"),
+    };
+
+    match crate::commands::pmdarima::pmdarima_calculate_pacf(data, get_optional_i32(&args, "nlags")).await {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_pmdarima_decompose_timeseries(args: Value) -> RpcResponse {
+    let data: Vec<f64> = match args.get("data").cloned() {
+        Some(value) => serde_json::from_value(value).unwrap_or_default(),
+        None => return RpcResponse::err("Missing 'data' parameter"),
+    };
+    let decomp_type = match get_required_string(&args, "decomp_type") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
+    };
+    let period = match get_optional_i32(&args, "period") {
+        Some(value) => value,
+        None => return RpcResponse::err("Missing 'period' parameter"),
+    };
+
+    match crate::commands::pmdarima::pmdarima_decompose_timeseries(data, decomp_type, period).await {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_pmdarima_cross_validate(args: Value) -> RpcResponse {
+    let data: Vec<f64> = match args.get("data").cloned() {
+        Some(value) => serde_json::from_value(value).unwrap_or_default(),
+        None => return RpcResponse::err("Missing 'data' parameter"),
+    };
+    let p = match get_optional_i32(&args, "p") {
+        Some(value) => value,
+        None => return RpcResponse::err("Missing 'p' parameter"),
+    };
+    let d = match get_optional_i32(&args, "d") {
+        Some(value) => value,
+        None => return RpcResponse::err("Missing 'd' parameter"),
+    };
+    let q = match get_optional_i32(&args, "q") {
+        Some(value) => value,
+        None => return RpcResponse::err("Missing 'q' parameter"),
+    };
+    let cv_splits = match get_optional_i32(&args, "cv_splits") {
+        Some(value) => value,
+        None => return RpcResponse::err("Missing 'cv_splits' parameter"),
+    };
+
+    match crate::commands::pmdarima::pmdarima_cross_validate(data, p, d, q, cv_splits).await {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+// ============================================================================
+// GOVERNMENT & MACRO DISPATCH FUNCTIONS
+// ============================================================================
+
+async fn dispatch_execute_government_us_command(args: Value) -> RpcResponse {
+    let command = match get_required_string(&args, "command") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
+    };
+    let command_args = match get_string_list(&args, "args") {
+        Ok(list) => list,
+        Err(e) => return RpcResponse::err(e),
+    };
+
+    match execute_python_command_runtime("government_us_data.py", &command, command_args) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_get_treasury_prices(args: Value) -> RpcResponse {
+    let mut command_args = Vec::new();
+    if let Some(value) = get_optional_string(&args, "target_date") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_string(&args, "cusip") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_string(&args, "security_type") {
+        command_args.push(value);
+    }
+
+    match execute_python_command_runtime("government_us_data.py", "treasury_prices", command_args) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_get_treasury_auctions(args: Value) -> RpcResponse {
+    let mut command_args = Vec::new();
+    if let Some(value) = get_optional_string(&args, "start_date") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_string(&args, "end_date") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_string(&args, "security_type") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_i32(&args, "page_size") {
+        command_args.push(value.to_string());
+    }
+    if let Some(value) = get_optional_i32(&args, "page_num") {
+        command_args.push(value.to_string());
+    }
+
+    match execute_python_command_runtime("government_us_data.py", "treasury_auctions", command_args) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_get_comprehensive_treasury_data(args: Value) -> RpcResponse {
+    let mut command_args = Vec::new();
+    if let Some(value) = get_optional_string(&args, "target_date") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_string(&args, "security_type") {
+        command_args.push(value);
+    }
+
+    match execute_python_command_runtime("government_us_data.py", "comprehensive", command_args) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_get_treasury_summary(args: Value) -> RpcResponse {
+    let mut command_args = Vec::new();
+    if let Some(value) = get_optional_string(&args, "target_date") {
+        command_args.push(value);
+    }
+
+    match execute_python_command_runtime("government_us_data.py", "summary", command_args) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_execute_congress_gov_command(args: Value) -> RpcResponse {
+    let command = match get_required_string(&args, "command") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
+    };
+    let command_args = match get_string_list(&args, "args") {
+        Ok(list) => list,
+        Err(e) => return RpcResponse::err(e),
+    };
+
+    match execute_python_command_runtime("congress_gov_data.py", &command, command_args) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_get_congress_bills(args: Value) -> RpcResponse {
+    let mut command_args = Vec::new();
+    if let Some(value) = get_optional_i32(&args, "congress") {
+        command_args.push(value.to_string());
+    }
+    if let Some(value) = get_optional_string(&args, "bill_type") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_string(&args, "start_date") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_string(&args, "end_date") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_i32(&args, "limit") {
+        command_args.push(value.to_string());
+    }
+    if let Some(value) = get_optional_i32(&args, "offset") {
+        command_args.push(value.to_string());
+    }
+    if let Some(value) = get_optional_string(&args, "sort_by") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_bool(&args, "get_all") {
+        command_args.push(value.to_string());
+    }
+
+    match execute_python_command_runtime("congress_gov_data.py", "congress_bills", command_args) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_get_bill_info(args: Value) -> RpcResponse {
+    let bill_url = match get_required_string(&args, "bill_url") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
+    };
+
+    match execute_python_command_runtime("congress_gov_data.py", "bill_info", vec![bill_url]) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_get_bill_text(args: Value) -> RpcResponse {
+    let bill_url = match get_required_string(&args, "bill_url") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
+    };
+
+    match execute_python_command_runtime("congress_gov_data.py", "bill_text", vec![bill_url]) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_download_bill_text(args: Value) -> RpcResponse {
+    let text_url = match get_required_string(&args, "text_url") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
+    };
+
+    match execute_python_command_runtime("congress_gov_data.py", "download_text", vec![text_url]) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_get_comprehensive_bill_data(args: Value) -> RpcResponse {
+    let bill_url = match get_required_string(&args, "bill_url") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
+    };
+
+    match execute_python_command_runtime("congress_gov_data.py", "comprehensive", vec![bill_url]) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_get_bill_summary_by_congress(args: Value) -> RpcResponse {
+    let mut command_args = Vec::new();
+    if let Some(value) = get_optional_i32(&args, "congress") {
+        command_args.push(value.to_string());
+    }
+    if let Some(value) = get_optional_i32(&args, "limit") {
+        command_args.push(value.to_string());
+    }
+
+    match execute_python_command_runtime("congress_gov_data.py", "summary", command_args) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_execute_oecd_command(args: Value) -> RpcResponse {
+    let command = match get_required_string(&args, "command") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
+    };
+    let command_args = match get_string_list(&args, "args") {
+        Ok(list) => list,
+        Err(e) => return RpcResponse::err(e),
+    };
+
+    match execute_python_command_runtime("oecd_data.py", &command, command_args) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_get_oecd_gdp_real(args: Value) -> RpcResponse {
+    let mut command_args = Vec::new();
+    if let Some(value) = get_optional_string(&args, "countries") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_string(&args, "frequency") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_string(&args, "start_date") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_string(&args, "end_date") {
+        command_args.push(value);
+    }
+
+    match execute_python_command_runtime("oecd_data.py", "gdp_real", command_args) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_get_oecd_consumer_price_index(args: Value) -> RpcResponse {
+    let mut command_args = Vec::new();
+    if let Some(value) = get_optional_string(&args, "countries") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_string(&args, "expenditure") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_string(&args, "frequency") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_string(&args, "units") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_bool(&args, "harmonized") {
+        command_args.push(value.to_string());
+    }
+    if let Some(value) = get_optional_string(&args, "start_date") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_string(&args, "end_date") {
+        command_args.push(value);
+    }
+
+    match execute_python_command_runtime("oecd_data.py", "cpi", command_args) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_get_oecd_gdp_forecast(args: Value) -> RpcResponse {
+    let mut command_args = Vec::new();
+    if let Some(value) = get_optional_string(&args, "countries") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_string(&args, "start_date") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_string(&args, "end_date") {
+        command_args.push(value);
+    }
+
+    match execute_python_command_runtime("oecd_data.py", "gdp_forecast", command_args) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_get_oecd_unemployment(args: Value) -> RpcResponse {
+    let mut command_args = Vec::new();
+    if let Some(value) = get_optional_string(&args, "countries") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_string(&args, "frequency") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_string(&args, "start_date") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_string(&args, "end_date") {
+        command_args.push(value);
+    }
+
+    match execute_python_command_runtime("oecd_data.py", "unemployment", command_args) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_get_oecd_economic_summary(args: Value) -> RpcResponse {
+    let mut command_args = Vec::new();
+    if let Some(value) = get_optional_string(&args, "country") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_string(&args, "start_date") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_string(&args, "end_date") {
+        command_args.push(value);
+    }
+
+    match execute_python_command_runtime("oecd_data.py", "economic_summary", command_args) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_get_oecd_country_list() -> RpcResponse {
+    match execute_python_command_runtime("oecd_data.py", "country_list", Vec::new()) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_execute_imf_command(args: Value) -> RpcResponse {
+    let command = match get_required_string(&args, "command") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
+    };
+    let command_args = match get_string_list(&args, "args") {
+        Ok(list) => list,
+        Err(e) => return RpcResponse::err(e),
+    };
+
+    match execute_python_command_runtime("imf_data.py", &command, command_args) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_get_imf_economic_indicators(args: Value) -> RpcResponse {
+    let mut command_args = Vec::new();
+    if let Some(value) = get_optional_string(&args, "country") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_string(&args, "indicator") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_string(&args, "start_date") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_string(&args, "end_date") {
+        command_args.push(value);
+    }
+
+    match execute_python_command_runtime("imf_data.py", "economic_indicators", command_args) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_get_imf_direction_of_trade(args: Value) -> RpcResponse {
+    let mut command_args = Vec::new();
+    if let Some(value) = get_optional_string(&args, "country") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_string(&args, "partner") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_string(&args, "start_date") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_string(&args, "end_date") {
+        command_args.push(value);
+    }
+
+    match execute_python_command_runtime("imf_data.py", "direction_of_trade", command_args) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_get_imf_available_indicators() -> RpcResponse {
+    match execute_python_command_runtime("imf_data.py", "available_indicators", Vec::new()) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_get_imf_comprehensive_economic_data(args: Value) -> RpcResponse {
+    let mut command_args = Vec::new();
+    if let Some(value) = get_optional_string(&args, "country") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_string(&args, "start_date") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_string(&args, "end_date") {
+        command_args.push(value);
+    }
+
+    match execute_python_command_runtime("imf_data.py", "comprehensive", command_args) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_get_imf_reserves_data(args: Value) -> RpcResponse {
+    let mut command_args = Vec::new();
+    if let Some(value) = get_optional_string(&args, "country") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_string(&args, "start_date") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_string(&args, "end_date") {
+        command_args.push(value);
+    }
+
+    match execute_python_command_runtime("imf_data.py", "reserves", command_args) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_get_imf_trade_summary(args: Value) -> RpcResponse {
+    let mut command_args = Vec::new();
+    if let Some(value) = get_optional_string(&args, "country") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_string(&args, "start_date") {
+        command_args.push(value);
+    }
+    if let Some(value) = get_optional_string(&args, "end_date") {
+        command_args.push(value);
+    }
+
+    match execute_python_command_runtime("imf_data.py", "trade_summary", command_args) {
+        Ok(result) => RpcResponse::ok(result),
         Err(e) => RpcResponse::err(e),
     }
 }

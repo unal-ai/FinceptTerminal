@@ -271,13 +271,27 @@ fn get_install_dir_for_runtime(app: Option<&tauri::AppHandle>) -> Result<PathBuf
 /// Get a Python script path at runtime
 /// Works in dev mode, production builds, and CI/CD pipelines
 pub fn get_script_path(app: &tauri::AppHandle, script_name: &str) -> Result<PathBuf, String> {
-    // Strategy: Try multiple paths in order until we find the script
+    get_script_path_for_runtime(Some(app), script_name)
+}
 
+/// Resolve a Python script path in both Tauri and non-Tauri runtimes.
+pub fn get_script_path_for_runtime(
+    app: Option<&tauri::AppHandle>,
+    script_name: &str,
+) -> Result<PathBuf, String> {
+    // Strategy: Try multiple paths in order until we find the script
     let mut candidate_paths = Vec::new();
 
+    // 0. Optional override for server/runtime deployments
+    if let Ok(custom_dir) = std::env::var("FINCEPT_SCRIPTS_PATH") {
+        candidate_paths.push(PathBuf::from(custom_dir).join(script_name));
+    }
+
     // 1. Try Tauri's resource_dir (works in production and should work in dev)
-    if let Ok(resource_dir) = app.path().resource_dir() {
-        candidate_paths.push(resource_dir.join("scripts").join(script_name));
+    if let Some(app) = app {
+        if let Ok(resource_dir) = app.path().resource_dir() {
+            candidate_paths.push(resource_dir.join("scripts").join(script_name));
+        }
     }
 
     // 2. Try relative to current executable (production fallback)
