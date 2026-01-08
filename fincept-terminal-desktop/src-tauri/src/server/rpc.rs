@@ -2,14 +2,15 @@
 // This module maps command names to their handlers, similar to Tauri's invoke_handler.
 // It allows reusing all existing command logic without modification.
 
-use super::types::{RpcRequest, RpcResponse};
+use super::types::{RpcRequest, RpcResponse, ServerState};
 use serde_json::Value;
+use std::sync::Arc;
 
 /// Dispatch an RPC request to the appropriate command handler
 /// 
 /// This function acts as the central router, mapping command names to their
 /// implementations. It mirrors the behavior of Tauri's invoke_handler macro.
-pub async fn dispatch(request: RpcRequest) -> RpcResponse {
+pub async fn dispatch(state: Arc<ServerState>, request: RpcRequest) -> RpcResponse {
     let args = request.args;
     
     match request.cmd.as_str() {
@@ -106,6 +107,18 @@ pub async fn dispatch(request: RpcRequest) -> RpcResponse {
             let result = hasher.finalize();
             RpcResponse::ok(format!("{:x}", result))
         }
+
+        // ============================================================================
+        // WEBSOCKET COMMANDS
+        // ============================================================================
+        "ws_set_config" => dispatch_ws_set_config(&state.ws_state, args).await,
+        "ws_connect" => dispatch_ws_connect(&state.ws_state, args).await,
+        "ws_disconnect" => dispatch_ws_disconnect(&state.ws_state, args).await,
+        "ws_subscribe" => dispatch_ws_subscribe(&state.ws_state, args).await,
+        "ws_unsubscribe" => dispatch_ws_unsubscribe(&state.ws_state, args).await,
+        "ws_get_metrics" => dispatch_ws_get_metrics(&state.ws_state, args).await,
+        "ws_get_all_metrics" => dispatch_ws_get_all_metrics(&state.ws_state).await,
+        "ws_reconnect" => dispatch_ws_reconnect(&state.ws_state, args).await,
 
         // ============================================================================
         // CATCH-ALL FOR UNIMPLEMENTED COMMANDS
@@ -601,5 +614,123 @@ async fn dispatch_check_setup_status() -> RpcResponse {
             "python_installed": false,
             "database_ready": false
         })),
+    }
+}
+
+// ============================================================================
+// WEBSOCKET DISPATCH FUNCTIONS
+// ============================================================================
+
+async fn dispatch_ws_set_config(state: &crate::WebSocketState, args: Value) -> RpcResponse {
+    let config_value = args.get("config").cloned().unwrap_or(args);
+    let config: crate::websocket::types::ProviderConfig = match serde_json::from_value(config_value) {
+        Ok(config) => config,
+        Err(e) => return RpcResponse::err(format!("Invalid config: {}", e)),
+    };
+
+    let manager = state.manager.read().await;
+    manager.set_config(config);
+    RpcResponse::ok(serde_json::json!({"saved": true}))
+}
+
+async fn dispatch_ws_connect(state: &crate::WebSocketState, args: Value) -> RpcResponse {
+    let provider = match args.get("provider").and_then(|v| v.as_str()) {
+        Some(provider) => provider.to_string(),
+        None => return RpcResponse::err("Missing 'provider' parameter"),
+    };
+
+    let manager = state.manager.read().await;
+    match manager.connect(&provider).await {
+        Ok(_) => RpcResponse::ok(serde_json::json!({"connected": true})),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_ws_disconnect(state: &crate::WebSocketState, args: Value) -> RpcResponse {
+    let provider = match args.get("provider").and_then(|v| v.as_str()) {
+        Some(provider) => provider.to_string(),
+        None => return RpcResponse::err("Missing 'provider' parameter"),
+    };
+
+    let manager = state.manager.read().await;
+    match manager.disconnect(&provider).await {
+        Ok(_) => RpcResponse::ok(serde_json::json!({"disconnected": true})),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_ws_subscribe(state: &crate::WebSocketState, args: Value) -> RpcResponse {
+    let provider = match args.get("provider").and_then(|v| v.as_str()) {
+        Some(provider) => provider.to_string(),
+        None => return RpcResponse::err("Missing 'provider' parameter"),
+    };
+    let symbol = match args.get("symbol").and_then(|v| v.as_str()) {
+        Some(symbol) => symbol.to_string(),
+        None => return RpcResponse::err("Missing 'symbol' parameter"),
+    };
+    let channel = match args.get("channel").and_then(|v| v.as_str()) {
+        Some(channel) => channel.to_string(),
+        None => return RpcResponse::err("Missing 'channel' parameter"),
+    };
+    let params = args.get("params").cloned();
+
+    let topic = format!("{}.{}.{}", provider, channel, symbol);
+    state.router.write().await.subscribe_frontend(&topic);
+
+    let manager = state.manager.read().await;
+    match manager.subscribe(&provider, &symbol, &channel, params).await {
+        Ok(_) => RpcResponse::ok(serde_json::json!({"subscribed": true})),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_ws_unsubscribe(state: &crate::WebSocketState, args: Value) -> RpcResponse {
+    let provider = match args.get("provider").and_then(|v| v.as_str()) {
+        Some(provider) => provider.to_string(),
+        None => return RpcResponse::err("Missing 'provider' parameter"),
+    };
+    let symbol = match args.get("symbol").and_then(|v| v.as_str()) {
+        Some(symbol) => symbol.to_string(),
+        None => return RpcResponse::err("Missing 'symbol' parameter"),
+    };
+    let channel = match args.get("channel").and_then(|v| v.as_str()) {
+        Some(channel) => channel.to_string(),
+        None => return RpcResponse::err("Missing 'channel' parameter"),
+    };
+
+    state.router.write().await.unsubscribe_frontend(&format!("{}.{}.{}", provider, channel, symbol));
+
+    let manager = state.manager.read().await;
+    match manager.unsubscribe(&provider, &symbol, &channel).await {
+        Ok(_) => RpcResponse::ok(serde_json::json!({"unsubscribed": true})),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_ws_get_metrics(state: &crate::WebSocketState, args: Value) -> RpcResponse {
+    let provider = match args.get("provider").and_then(|v| v.as_str()) {
+        Some(provider) => provider.to_string(),
+        None => return RpcResponse::err("Missing 'provider' parameter"),
+    };
+
+    let manager = state.manager.read().await;
+    RpcResponse::ok(manager.get_metrics(&provider))
+}
+
+async fn dispatch_ws_get_all_metrics(state: &crate::WebSocketState) -> RpcResponse {
+    let manager = state.manager.read().await;
+    RpcResponse::ok(manager.get_all_metrics())
+}
+
+async fn dispatch_ws_reconnect(state: &crate::WebSocketState, args: Value) -> RpcResponse {
+    let provider = match args.get("provider").and_then(|v| v.as_str()) {
+        Some(provider) => provider.to_string(),
+        None => return RpcResponse::err("Missing 'provider' parameter"),
+    };
+
+    let manager = state.manager.read().await;
+    match manager.reconnect(&provider).await {
+        Ok(_) => RpcResponse::ok(serde_json::json!({"reconnected": true})),
+        Err(e) => RpcResponse::err(e.to_string()),
     }
 }
