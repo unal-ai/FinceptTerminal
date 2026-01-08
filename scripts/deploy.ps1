@@ -25,6 +25,9 @@ function Ensure-Uv {
     # WARNING: This downloads and executes a remote PowerShell script without verification.
     # For production use, consider installing uv via a package manager or verifying
     # the installer against a pinned checksum/signature to mitigate supply-chain risks.
+    Write-Host "[!!] Security notice: This step downloads and executes a remote installer (uv) without verification." -ForegroundColor Yellow
+    Write-Host "[!!] For production use, prefer installing uv via a trusted package manager or verifying" -ForegroundColor Yellow
+    Write-Host "[!!] the installer against a pinned checksum or signature to mitigate supply-chain risks." -ForegroundColor Yellow
     iwr https://astral.sh/uv/install.ps1 -UseBasicParsing | iex
   } catch {
     return $false
