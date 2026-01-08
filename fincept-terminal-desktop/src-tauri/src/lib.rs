@@ -93,6 +93,34 @@ fn spawn_mcp_server(
     )
 }
 
+/// Spawn an MCP server process in a runtime-agnostic way.
+///
+/// This internal function provides the core logic for spawning MCP (Model Context Protocol)
+/// server processes, and can be called from both Tauri command contexts and web server
+/// RPC handlers.
+///
+/// # Parameters
+///
+/// * `app` - Optional Tauri application handle. Pass `Some(&app_handle)` when called from
+///   a Tauri command to enable bundled Bun path resolution. Pass `None` when called from
+///   a web server context where no Tauri runtime is available.
+/// * `state` - Reference to the shared [`MCPState`] that tracks spawned MCP server processes.
+/// * `server_id` - Unique identifier for this MCP server instance.
+/// * `command` - The command to execute (e.g., "npx", "bunx", "node", or a direct path).
+/// * `args` - Command-line arguments to pass to the spawned process.
+/// * `env` - Environment variables to set for the spawned process.
+///
+/// # Bun/npx Substitution
+///
+/// When `command` is "npx" or "bunx", this function attempts to resolve the bundled Bun
+/// executable path and substitutes the command with `bun x`, which provides equivalent
+/// functionality. This ensures that MCP servers can be spawned consistently across
+/// different runtime environments without requiring a separate Node.js installation.
+///
+/// # Returns
+///
+/// Returns a [`SpawnResult`] containing the process ID on success, or an error message
+/// if the process could not be spawned.
 pub(crate) fn spawn_mcp_server_internal(
     app: Option<&tauri::AppHandle>,
     state: &MCPState,
