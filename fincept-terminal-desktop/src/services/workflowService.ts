@@ -5,6 +5,7 @@ import {
   WorkflowStatus
 } from '@/types/workflow';
 import { workflowLogger } from './loggerService';
+import { invoke } from '@/services/invoke';
 
 // Re-export the Workflow type for consumers
 export type { Workflow, WorkflowNode, WorkflowEdge, WorkflowStatus };
@@ -118,10 +119,14 @@ class WorkflowService {
 
   async cleanupRunningWorkflows(): Promise<void> {
     workflowLogger.info('Cleaning up running workflows...');
-    for (const workflowId of this.runningWorkflows) {
-      await this.stopWorkflow(workflowId);
+    try {
+      await invoke('cleanup_running_workflows');
+    } finally {
+      for (const workflowId of this.runningWorkflows) {
+        await this.stopWorkflow(workflowId);
+      }
+      this.runningWorkflows.clear();
     }
-    this.runningWorkflows.clear();
   }
 
   isWorkflowRunning(id: string): boolean {

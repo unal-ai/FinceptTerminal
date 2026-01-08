@@ -129,6 +129,7 @@ pub async fn dispatch(state: Arc<ServerState>, request: RpcRequest) -> RpcRespon
         // SETUP & UTILITY COMMANDS
         // ============================================================================
         "check_setup_status" => dispatch_check_setup_status().await,
+        "cleanup_running_workflows" => dispatch_cleanup_running_workflows().await,
         "sha256_hash" => {
             let input = args.get("input")
                 .and_then(|v| v.as_str())
@@ -151,6 +152,15 @@ pub async fn dispatch(state: Arc<ServerState>, request: RpcRequest) -> RpcRespon
         "ws_get_metrics" => dispatch_ws_get_metrics(&state.ws_state, args).await,
         "ws_get_all_metrics" => dispatch_ws_get_all_metrics(&state.ws_state).await,
         "ws_reconnect" => dispatch_ws_reconnect(&state.ws_state, args).await,
+
+        // ============================================================================
+        // MONITORING COMMANDS
+        // ============================================================================
+        "monitor_add_condition" => dispatch_monitor_add_condition(&state.ws_state, args).await,
+        "monitor_get_conditions" => dispatch_monitor_get_conditions().await,
+        "monitor_delete_condition" => dispatch_monitor_delete_condition(&state.ws_state, args).await,
+        "monitor_get_alerts" => dispatch_monitor_get_alerts(args).await,
+        "monitor_load_conditions" => dispatch_monitor_load_conditions(&state.ws_state).await,
 
         // ============================================================================
         // MCP COMMANDS
@@ -1082,6 +1092,195 @@ async fn dispatch_db_delete_trade(args: Value) -> RpcResponse {
     };
     match crate::database::paper_trading::delete_trade(&id) {
         Ok(_) => RpcResponse::ok(serde_json::json!({"deleted": true})),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_cleanup_running_workflows() -> RpcResponse {
+    RpcResponse::ok(serde_json::Value::Null)
+}
+
+// ============================================================================
+// MONITORING DISPATCH FUNCTIONS
+// ============================================================================
+
+async fn dispatch_monitor_add_condition(
+    state: &crate::WebSocketState,
+    args: Value,
+) -> RpcResponse {
+    use rusqlite::params;
+
+    let condition_value = args.get("condition").cloned().unwrap_or(args);
+    let condition: crate::websocket::services::monitoring::MonitorCondition =
+        match serde_json::from_value(condition_value) {
+            Ok(condition) => condition,
+            Err(e) => return RpcResponse::err(format!("Invalid 'condition' parameter: {}", e)),
+        };
+
+    let pool = match crate::database::pool::get_pool() {
+        Ok(pool) => pool,
+        Err(e) => return RpcResponse::err(e.to_string()),
+    };
+    let conn = match pool.get() {
+        Ok(conn) => conn,
+        Err(e) => return RpcResponse::err(e.to_string()),
+    };
+
+    if let Err(e) = conn.execute(
+        "INSERT INTO monitor_conditions (provider, symbol, field, operator, value, value2, enabled)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params![
+            &condition.provider,
+            &condition.symbol,
+            condition.field.as_str(),
+            condition.operator.as_str(),
+            condition.value,
+            condition.value2,
+            if condition.enabled { 1 } else { 0 },
+        ],
+    ) {
+        return RpcResponse::err(e.to_string());
+    }
+
+    let id = conn.last_insert_rowid();
+
+    let services = state.services.read().await;
+    let _ = services.monitoring.load_conditions().await;
+
+    RpcResponse::ok(id)
+}
+
+async fn dispatch_monitor_get_conditions() -> RpcResponse {
+    let pool = match crate::database::pool::get_pool() {
+        Ok(pool) => pool,
+        Err(e) => return RpcResponse::err(e.to_string()),
+    };
+    let conn = match pool.get() {
+        Ok(conn) => conn,
+        Err(e) => return RpcResponse::err(e.to_string()),
+    };
+
+    let mut stmt = match conn.prepare(
+        "SELECT id, provider, symbol, field, operator, value, value2, enabled
+         FROM monitor_conditions
+         ORDER BY created_at DESC",
+    ) {
+        Ok(stmt) => stmt,
+        Err(e) => return RpcResponse::err(e.to_string()),
+    };
+
+    let conditions = match stmt.query_map([], |row| {
+        Ok(crate::websocket::services::monitoring::MonitorCondition {
+            id: Some(row.get(0)?),
+            provider: row.get(1)?,
+            symbol: row.get(2)?,
+            field: crate::websocket::services::monitoring::MonitorField::from_str(
+                &row.get::<_, String>(3)?,
+            )
+            .unwrap(),
+            operator: crate::websocket::services::monitoring::MonitorOperator::from_str(
+                &row.get::<_, String>(4)?,
+            )
+            .unwrap(),
+            value: row.get(5)?,
+            value2: row.get(6)?,
+            enabled: row.get::<_, i32>(7)? == 1,
+        })
+    }) {
+        Ok(rows) => rows.collect::<Result<Vec<_>, _>>(),
+        Err(e) => return RpcResponse::err(e.to_string()),
+    };
+
+    match conditions {
+        Ok(conditions) => RpcResponse::ok(conditions),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_monitor_delete_condition(
+    state: &crate::WebSocketState,
+    args: Value,
+) -> RpcResponse {
+    use rusqlite::params;
+
+    let id = match args.get("id").and_then(|v| v.as_i64()) {
+        Some(id) => id,
+        None => return RpcResponse::err("Missing 'id' parameter"),
+    };
+
+    let pool = match crate::database::pool::get_pool() {
+        Ok(pool) => pool,
+        Err(e) => return RpcResponse::err(e.to_string()),
+    };
+    let conn = match pool.get() {
+        Ok(conn) => conn,
+        Err(e) => return RpcResponse::err(e.to_string()),
+    };
+
+    if let Err(e) = conn.execute("DELETE FROM monitor_conditions WHERE id = ?1", params![id]) {
+        return RpcResponse::err(e.to_string());
+    }
+
+    let services = state.services.read().await;
+    if let Err(e) = services.monitoring.load_conditions().await {
+        return RpcResponse::err(e.to_string());
+    }
+
+    RpcResponse::ok(serde_json::json!({"deleted": true}))
+}
+
+async fn dispatch_monitor_get_alerts(args: Value) -> RpcResponse {
+    use rusqlite::params;
+
+    let limit = args.get("limit").and_then(|v| v.as_i64()).unwrap_or(50);
+
+    let pool = match crate::database::pool::get_pool() {
+        Ok(pool) => pool,
+        Err(e) => return RpcResponse::err(e.to_string()),
+    };
+    let conn = match pool.get() {
+        Ok(conn) => conn,
+        Err(e) => return RpcResponse::err(e.to_string()),
+    };
+
+    let mut stmt = match conn.prepare(
+        "SELECT id, condition_id, provider, symbol, field, triggered_value, triggered_at
+         FROM monitor_alerts
+         ORDER BY triggered_at DESC
+         LIMIT ?1",
+    ) {
+        Ok(stmt) => stmt,
+        Err(e) => return RpcResponse::err(e.to_string()),
+    };
+
+    let alerts = match stmt.query_map(params![limit], |row| {
+        Ok(crate::websocket::services::monitoring::MonitorAlert {
+            id: Some(row.get(0)?),
+            condition_id: row.get(1)?,
+            provider: row.get(2)?,
+            symbol: row.get(3)?,
+            field: crate::websocket::services::monitoring::MonitorField::from_str(
+                &row.get::<_, String>(4)?,
+            )
+            .unwrap(),
+            triggered_value: row.get(5)?,
+            triggered_at: row.get::<_, i64>(6)? as u64,
+        })
+    }) {
+        Ok(rows) => rows.collect::<Result<Vec<_>, _>>(),
+        Err(e) => return RpcResponse::err(e.to_string()),
+    };
+
+    match alerts {
+        Ok(alerts) => RpcResponse::ok(alerts),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_monitor_load_conditions(state: &crate::WebSocketState) -> RpcResponse {
+    let services = state.services.read().await;
+    match services.monitoring.load_conditions().await {
+        Ok(_) => RpcResponse::ok(serde_json::json!({"loaded": true})),
         Err(e) => RpcResponse::err(e.to_string()),
     }
 }
