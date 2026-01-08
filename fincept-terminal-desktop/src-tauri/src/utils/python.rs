@@ -118,6 +118,33 @@ pub fn get_bundled_bun_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     get_bundled_bun_path_for_runtime(Some(app))
 }
 
+/// Resolve the Bun executable path in a runtime-agnostic way.
+///
+/// This function is similar to [`get_bundled_bun_path`] but is designed to work
+/// in contexts where a Tauri [`AppHandle`] may not be available, such as
+/// background tasks, CLIs, or web server runtimes.
+///
+/// # Parameters
+///
+/// * `app` - Optional Tauri application handle used to determine the
+///   installation directory when running inside a Tauri application. Pass
+///   `None` when calling from a non-Tauri or server context where no
+///   `AppHandle` is available.
+///
+/// # Returns
+///
+/// On success, returns the resolved [`PathBuf`] to the Bun executable,
+/// preferring a bundled Bun distribution and, in debug builds, potentially
+/// falling back to a system-installed `bun`. On failure, returns a
+/// human-readable error message describing the missing locations.
+///
+/// # Differences from [`get_bundled_bun_path`]
+///
+/// * `get_bundled_bun_path` requires a non-optional [`AppHandle`] and is
+///   intended for use from within the main Tauri application.
+/// * `get_bundled_bun_path_for_runtime` accepts an optional [`AppHandle`] and
+///   can be safely used from generic runtime or server code where Tauri
+///   context may not exist.
 pub fn get_bundled_bun_path_for_runtime(app: Option<&tauri::AppHandle>) -> Result<PathBuf, String> {
     let install_dir = get_install_dir_for_runtime(app)?;
 
@@ -173,6 +200,22 @@ pub fn get_bundled_bun_path_for_runtime(app: Option<&tauri::AppHandle>) -> Resul
     ))
 }
 
+/// Determine the installation directory used to locate bundled runtimes and tools.
+///
+/// When running in debug mode, this returns a development-specific directory
+/// (e.g. `LOCALAPPDATA/fincept-dev` on Windows) to avoid interfering with the
+/// production installation.
+///
+/// In release mode, if a Tauri [`AppHandle`] is provided, this uses
+/// `app.path().app_data_dir()` as the base. If no handle is available, it first
+/// checks the `FINCEPT_APP_DATA_DIR` environment variable, and if unset falls
+/// back to platform-specific default app data locations (e.g. `APPDATA` on
+/// Windows, `~/Library/Application Support` on macOS, or `XDG_DATA_HOME` /
+/// `~/.local/share` on Linux).
+///
+/// The logic in this function MUST remain in sync with `setup.rs::get_install_dir()`
+/// so that the installer and the runtime both agree on where the application data
+/// and bundled binaries are stored.
 fn get_install_dir_for_runtime(app: Option<&tauri::AppHandle>) -> Result<PathBuf, String> {
     // Get install directory - MUST match setup.rs get_install_dir()
     if cfg!(debug_assertions) {
@@ -207,7 +250,12 @@ fn get_install_dir_for_runtime(app: Option<&tauri::AppHandle>) -> Result<PathBuf
     let base_dir = if cfg!(target_os = "windows") {
         std::env::var("APPDATA")
             .map(PathBuf::from)
-            .unwrap_or_else(|_| PathBuf::from("C:\\Users\\Default\\AppData\\Roaming"))
+            .or_else(|_| {
+                std::env::var("PROGRAMDATA")
+                    .map(PathBuf::from)
+                    .map(|p| p.join("fincept"))
+            })
+            .unwrap_or_else(|_| PathBuf::from("C:\\ProgramData\\fincept"))
     } else if cfg!(target_os = "macos") {
         std::env::var("HOME")
             .map(|h| PathBuf::from(h).join("Library/Application Support"))
