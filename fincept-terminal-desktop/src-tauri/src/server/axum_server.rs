@@ -209,7 +209,9 @@ async fn ws_handler(
 
 async fn handle_ws(socket: WebSocket, state: Arc<ServerState>) {
     let (mut sender, mut receiver) = socket.split();
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Message>();
+    // Use bounded channel with reasonable buffer size (1000 messages)
+    // If client is slow, oldest messages will be dropped to prevent memory growth
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<Message>(1000);
 
     let (mut ticker_rx, mut orderbook_rx, mut trade_rx, mut candle_rx, mut status_rx) = {
         let router = state.ws_state.router.read().await;
@@ -237,8 +239,13 @@ async fn handle_ws(socket: WebSocket, state: Arc<ServerState>) {
                 "event": "ws_ticker",
                 "data": data,
             });
-            if tx_clone.send(Message::Text(payload.to_string())).is_err() {
-                break;
+            let message_text = payload.to_string();
+            match tx_clone.try_send(Message::Text(message_text)) {
+                Ok(_) => {}
+                Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
+                    tracing::warn!("WebSocket channel full, dropping ticker message");
+                }
+                Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => break,
             }
         }
     });
@@ -250,8 +257,13 @@ async fn handle_ws(socket: WebSocket, state: Arc<ServerState>) {
                 "event": "ws_orderbook",
                 "data": data,
             });
-            if tx_clone.send(Message::Text(payload.to_string())).is_err() {
-                break;
+            let message_text = payload.to_string();
+            match tx_clone.try_send(Message::Text(message_text)) {
+                Ok(_) => {}
+                Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
+                    tracing::warn!("WebSocket channel full, dropping orderbook message");
+                }
+                Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => break,
             }
         }
     });
@@ -263,8 +275,13 @@ async fn handle_ws(socket: WebSocket, state: Arc<ServerState>) {
                 "event": "ws_trade",
                 "data": data,
             });
-            if tx_clone.send(Message::Text(payload.to_string())).is_err() {
-                break;
+            let message_text = payload.to_string();
+            match tx_clone.try_send(Message::Text(message_text)) {
+                Ok(_) => {}
+                Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
+                    tracing::warn!("WebSocket channel full, dropping trade message");
+                }
+                Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => break,
             }
         }
     });
@@ -276,8 +293,13 @@ async fn handle_ws(socket: WebSocket, state: Arc<ServerState>) {
                 "event": "ws_candle",
                 "data": data,
             });
-            if tx_clone.send(Message::Text(payload.to_string())).is_err() {
-                break;
+            let message_text = payload.to_string();
+            match tx_clone.try_send(Message::Text(message_text)) {
+                Ok(_) => {}
+                Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
+                    tracing::warn!("WebSocket channel full, dropping candle message");
+                }
+                Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => break,
             }
         }
     });
@@ -289,8 +311,13 @@ async fn handle_ws(socket: WebSocket, state: Arc<ServerState>) {
                 "event": "ws_status",
                 "data": data,
             });
-            if tx_clone.send(Message::Text(payload.to_string())).is_err() {
-                break;
+            let message_text = payload.to_string();
+            match tx_clone.try_send(Message::Text(message_text)) {
+                Ok(_) => {}
+                Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
+                    tracing::warn!("WebSocket channel full, dropping status message");
+                }
+                Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => break,
             }
         }
     });
@@ -298,6 +325,15 @@ async fn handle_ws(socket: WebSocket, state: Arc<ServerState>) {
     while let Some(message) = receiver.next().await {
         match message {
             Ok(Message::Close(_)) | Err(_) => break,
+            Ok(Message::Ping(data)) => {
+                // Respond to ping with pong to keep connection alive
+                if tx.send(Message::Pong(data)).await.is_err() {
+                    break;
+                }
+            }
+            Ok(Message::Pong(_)) => {
+                // Pong received, connection is alive
+            }
             _ => {}
         }
     }
@@ -307,23 +343,23 @@ async fn handle_ws(socket: WebSocket, state: Arc<ServerState>) {
     trade_task.abort();
     candle_task.abort();
     status_task.abort();
-    drop(tx);
-    let _ = send_task.await;
-    let _ = ticker_task.await;
-    let _ = orderbook_task.await;
-    let _ = trade_task.await;
-    let _ = candle_task.await;
-    let _ = status_task.await;
+    send_task.abort();
 }
 
 async fn init_websocket_state() -> Result<crate::WebSocketState, Box<dyn std::error::Error>> {
     let router = Arc::new(tokio::sync::RwLock::new(crate::websocket::MessageRouter::new()));
     let manager = Arc::new(tokio::sync::RwLock::new(crate::websocket::WebSocketManager::new(router.clone())));
+    
+    let db_path = crate::database::pool::get_db_path()?
+        .to_string_lossy()
+        .to_string();
+    
+    let monitoring_service = crate::websocket::services::MonitoringService::new(db_path);
     let services = Arc::new(tokio::sync::RwLock::new(crate::WebSocketServices {
         paper_trading: crate::websocket::services::PaperTradingService::new(),
         arbitrage: crate::websocket::services::ArbitrageService::new(),
         portfolio: crate::websocket::services::PortfolioService::new(),
-        monitoring: crate::websocket::services::MonitoringService::default(),
+        monitoring: monitoring_service,
     }));
 
     let ws_state = crate::WebSocketState {
@@ -332,11 +368,7 @@ async fn init_websocket_state() -> Result<crate::WebSocketState, Box<dyn std::er
         services: services.clone(),
     };
 
-    let db_path = crate::database::pool::get_db_path()?
-        .to_string_lossy()
-        .to_string();
     let mut services_guard = services.write().await;
-    services_guard.monitoring = crate::websocket::services::MonitoringService::new(db_path);
     let ticker_rx = router.read().await.subscribe_ticker();
     services_guard.monitoring.start_monitoring(ticker_rx);
     if let Err(err) = services_guard.monitoring.load_conditions().await {
