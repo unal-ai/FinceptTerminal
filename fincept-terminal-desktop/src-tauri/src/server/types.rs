@@ -37,7 +37,10 @@ impl RpcResponse {
             },
             Err(e) => {
                 // Serialization failed - return error response instead of masking the error
-                eprintln!("RpcResponse::ok: failed to serialize response data: {}", e);
+                tracing::error!(
+                    error = %e,
+                    "RpcResponse::ok: failed to serialize response data"
+                );
                 Self {
                     success: false,
                     data: None,
