@@ -1344,7 +1344,9 @@ mod tests {
     // ============================================================================
 
     fn create_test_mcp_state() -> Arc<crate::MCPState> {
-        Arc::new(std::sync::Mutex::new(std::collections::HashMap::new()))
+        Arc::new(crate::MCPState {
+            processes: std::sync::Mutex::new(std::collections::HashMap::new()),
+        })
     }
 
     #[tokio::test]
