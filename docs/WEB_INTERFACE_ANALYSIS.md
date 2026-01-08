@@ -505,9 +505,9 @@ export async function invoke<T>(cmd: string, args: Record<string, any>): Promise
 }
 ```
 
-### Phase 4: Authentication (Optional - 1 week)
+### Phase 4: Authentication (Recommended - 1 week)
 
-For internal use, authentication can be skipped. For production:
+For internal use, prefer authentication or strict isolation. For production:
 
 ```rust
 // Axum JWT middleware
@@ -628,7 +628,7 @@ export default defineConfig({
 
 1. **Use Rust-native Axum server** - Reuse all 930+ commands
 2. **Keep SQLite** - Simple deployment, no database migration
-3. **Skip authentication** - Internal network only
+3. **Require authentication or strict isolation** - Do not expose the high-privilege `/api/rpc` endpoint unauthenticated on any shared/internal network; either enable auth or bind to localhost and lock down CORS/firewall rules
 4. **Single Docker container** - Rust binary + Python runtime
 5. **Estimated time: 4-6 weeks**
 
@@ -674,7 +674,7 @@ This approach:
 | **Rust-Native (Axum)** | **4-6 weeks** | Low |
 | Python/Node Rewrite | 12-18 weeks | Medium-High |
 
-For internal use where authentication can be skipped, the Rust-native approach can be deployed in as little as **4 weeks**.
+For internal use with authentication or strict isolation in place, the Rust-native approach can be deployed in as little as **4 weeks**.
 
 ---
 

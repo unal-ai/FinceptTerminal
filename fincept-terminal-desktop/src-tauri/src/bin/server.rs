@@ -12,6 +12,7 @@
 // Environment Variables:
 //   FINCEPT_HOST - Server host (default: 0.0.0.0)
 //   FINCEPT_PORT - Server port (default: 3000)
+//   FINCEPT_CORS_ORIGINS - Comma-separated list of allowed CORS origins
 //   FINCEPT_PYTHON_PATH - Path to Python executable
 //   FINCEPT_SCRIPTS_PATH - Path to Python scripts directory
 
@@ -26,12 +27,21 @@ fn main() {
         .and_then(|p| p.parse().ok())
         .unwrap_or(3000);
     
-    let config = ServerConfig {
-        host,
-        port,
-        cors_enabled: true,
-        cors_origins: vec!["*".to_string()],
-    };
+    let mut config = ServerConfig::default();
+    config.host = host;
+    config.port = port;
+
+    if let Ok(origins) = std::env::var("FINCEPT_CORS_ORIGINS") {
+        let parsed: Vec<String> = origins
+            .split(',')
+            .map(|origin| origin.trim())
+            .filter(|origin| !origin.is_empty())
+            .map(String::from)
+            .collect();
+        if !parsed.is_empty() {
+            config.cors_origins = parsed;
+        }
+    }
     
     println!("╔═══════════════════════════════════════════════════════════╗");
     println!("║         FINCEPT TERMINAL WEB SERVER v{}              ║", env!("CARGO_PKG_VERSION"));

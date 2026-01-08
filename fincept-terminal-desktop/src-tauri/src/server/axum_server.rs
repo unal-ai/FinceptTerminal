@@ -18,7 +18,7 @@
 
 use axum::{
     extract::State,
-    http::{Method, Request, StatusCode},
+    http::{HeaderValue, Method, Request, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -26,12 +26,12 @@ use axum::{
 };
 use std::sync::Arc;
 use std::time::Instant;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
 
 use super::rpc::dispatch;
-use super::types::{HealthResponse, RpcRequest, RpcResponse, ServerConfig};
+use super::types::{HealthResponse, RpcRequest, ServerConfig};
 
 /// Server state with startup time for uptime tracking
 pub struct ServerState {
@@ -51,12 +51,6 @@ pub async fn run_server(config: ServerConfig) -> Result<(), Box<dyn std::error::
         request_count: std::sync::atomic::AtomicU64::new(0),
     });
 
-    // Configure CORS
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
-        .allow_headers(Any);
-
     // Request ID layer for tracing
     let x_request_id = axum::http::HeaderName::from_static("x-request-id");
 
@@ -67,11 +61,32 @@ pub async fn run_server(config: ServerConfig) -> Result<(), Box<dyn std::error::
         .route("/api/ready", get(ready_handler))
         .route("/", get(index_handler))
         .layer(middleware::from_fn_with_state(server_state.clone(), request_logging_middleware))
-        .layer(cors)
         .layer(PropagateRequestIdLayer::new(x_request_id.clone()))
         .layer(SetRequestIdLayer::new(x_request_id.clone(), MakeRequestUuid))
         .layer(TraceLayer::new_for_http())
         .with_state(server_state);
+    let app = if config.cors_enabled {
+        let cors = if config.cors_origins.iter().any(|origin| origin == "*") {
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
+                .allow_headers(Any)
+        } else {
+            let allowed_origins: Vec<HeaderValue> = config
+                .cors_origins
+                .iter()
+                .filter_map(|origin| HeaderValue::from_str(origin).ok())
+                .collect();
+            CorsLayer::new()
+                .allow_origin(AllowOrigin::list(allowed_origins))
+                .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
+                .allow_headers(Any)
+        };
+
+        app.layer(cors)
+    } else {
+        app
+    };
 
     // Start the server
     let addr = format!("{}:{}", config.host, config.port);
@@ -221,7 +236,7 @@ async fn ready_handler(State(state): State<Arc<ServerState>>) -> impl IntoRespon
 
 /// Index handler - returns API documentation
 async fn index_handler() -> impl IntoResponse {
-    let html = r#"
+    let html = r##"
 <!DOCTYPE html>
 <html>
 <head>
@@ -380,10 +395,11 @@ async fn index_handler() -> impl IntoResponse {
   -H 'Content-Type: application/json' \
   -d '{"cmd": "db_create_portfolio", "args": {"name": "Main Portfolio", "currency": "USD"}}'</pre>
     
-    <p><em>Version: "#.to_string() + env!("CARGO_PKG_VERSION") + r#"</em></p>
+    <p><em>Version: {{VERSION}}</em></p>
 </body>
 </html>
-"#;
+"##;
 
+    let html = html.replace("{{VERSION}}", env!("CARGO_PKG_VERSION"));
     (axum::http::StatusCode::OK, [("content-type", "text/html")], html)
 }

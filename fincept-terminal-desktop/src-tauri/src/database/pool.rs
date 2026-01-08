@@ -87,7 +87,25 @@ pub async fn init_database() -> Result<DbPool> {
 
 /// Get database file path - platform-specific app data directories
 fn get_db_path() -> Result<std::path::PathBuf> {
-    let db_dir = if cfg!(target_os = "windows") {
+    let db_dir = get_data_dir()?;
+    Ok(db_dir.join("fincept_terminal.db"))
+}
+
+/// Get separate database paths for notes and excel
+pub fn get_notes_db_path() -> Result<std::path::PathBuf> {
+    let db_dir = get_data_dir()?;
+    Ok(db_dir.join("financial_notes.db"))
+}
+
+pub fn get_excel_db_path() -> Result<std::path::PathBuf> {
+    let db_dir = get_data_dir()?;
+    Ok(db_dir.join("excel_files.db"))
+}
+
+fn get_data_dir() -> Result<std::path::PathBuf> {
+    let db_dir = if let Ok(path) = std::env::var("FINCEPT_DATA_DIR") {
+        std::path::PathBuf::from(path)
+    } else if cfg!(target_os = "windows") {
         // Windows: %APPDATA%\fincept-terminal
         let appdata = std::env::var("APPDATA")
             .context("APPDATA environment variable not set")?;
@@ -110,54 +128,5 @@ fn get_db_path() -> Result<std::path::PathBuf> {
     };
 
     std::fs::create_dir_all(&db_dir).context("Failed to create database directory")?;
-    Ok(db_dir.join("fincept_terminal.db"))
-}
-
-/// Get separate database paths for notes and excel
-pub fn get_notes_db_path() -> Result<std::path::PathBuf> {
-    let db_dir = if cfg!(target_os = "windows") {
-        let appdata = std::env::var("APPDATA")
-            .context("APPDATA environment variable not set")?;
-        std::path::PathBuf::from(appdata).join("fincept-terminal")
-    } else if cfg!(target_os = "macos") {
-        let home = std::env::var("HOME")
-            .context("HOME environment variable not set")?;
-        std::path::PathBuf::from(home)
-            .join("Library")
-            .join("Application Support")
-            .join("fincept-terminal")
-    } else {
-        let home = std::env::var("HOME")
-            .context("HOME environment variable not set")?;
-        let xdg_data = std::env::var("XDG_DATA_HOME")
-            .unwrap_or_else(|_| format!("{}/.local/share", home));
-        std::path::PathBuf::from(xdg_data).join("fincept-terminal")
-    };
-
-    std::fs::create_dir_all(&db_dir).context("Failed to create database directory")?;
-    Ok(db_dir.join("financial_notes.db"))
-}
-
-pub fn get_excel_db_path() -> Result<std::path::PathBuf> {
-    let db_dir = if cfg!(target_os = "windows") {
-        let appdata = std::env::var("APPDATA")
-            .context("APPDATA environment variable not set")?;
-        std::path::PathBuf::from(appdata).join("fincept-terminal")
-    } else if cfg!(target_os = "macos") {
-        let home = std::env::var("HOME")
-            .context("HOME environment variable not set")?;
-        std::path::PathBuf::from(home)
-            .join("Library")
-            .join("Application Support")
-            .join("fincept-terminal")
-    } else {
-        let home = std::env::var("HOME")
-            .context("HOME environment variable not set")?;
-        let xdg_data = std::env::var("XDG_DATA_HOME")
-            .unwrap_or_else(|_| format!("{}/.local/share", home));
-        std::path::PathBuf::from(xdg_data).join("fincept-terminal")
-    };
-
-    std::fs::create_dir_all(&db_dir).context("Failed to create database directory")?;
-    Ok(db_dir.join("excel_files.db"))
+    Ok(db_dir)
 }

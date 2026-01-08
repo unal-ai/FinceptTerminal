@@ -4,9 +4,23 @@ use std::collections::HashMap;
 
 #[tokio::test]
 async fn test_parse_real_databento_file() {
-    let file_path = "C:/windowsdisk/finceptTerminal/fincept-terminal-desktop/src-tauri/resources/scripts/databento_raw_data.bin";
+    let file_path = std::env::var("FINCEPT_TEST_DATABENTO_FILE").unwrap_or_else(|_| {
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("resources")
+            .join("scripts")
+            .join("databento_raw_data.bin")
+            .to_string_lossy()
+            .to_string()
+    });
+    if !std::path::Path::new(&file_path).exists() {
+        eprintln!(
+            "Skipping Databento parse test: file not found at {}",
+            file_path
+        );
+        return;
+    }
 
-    let result = data_mapper::parse_databento_file(file_path);
+    let result = data_mapper::parse_databento_file(&file_path);
 
     match result {
         Ok(candle_data) => {
