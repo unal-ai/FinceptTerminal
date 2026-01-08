@@ -387,7 +387,10 @@ async fn dispatch_market_quote(args: Value) -> RpcResponse {
 
 async fn dispatch_market_quotes(args: Value) -> RpcResponse {
     let symbols: Vec<String> = match args.get("symbols") {
-        Some(v) => serde_json::from_value(v.clone()).unwrap_or_default(),
+        Some(v) => match serde_json::from_value(v.clone()) {
+            Ok(parsed) => parsed,
+            Err(e) => return RpcResponse::err(format!("Invalid 'symbols' parameter: {}", e)),
+        },
         None => return RpcResponse::err("Missing 'symbols' parameter"),
     };
 
@@ -485,6 +488,26 @@ async fn dispatch_get_active_sources() -> RpcResponse {
 
 fn execute_python_script_runtime(script_name: &str, args: Vec<String>) -> Result<String, String> {
     let script_path = crate::utils::python::get_script_path_for_runtime(None, script_name)?;
+    
+    // SECURITY: Basic input validation for command-line arguments
+    // Validate argument length to prevent potential buffer overflow or DoS
+    for (i, arg) in args.iter().enumerate() {
+        if arg.len() > 10_000 {
+            return Err(format!(
+                "Argument {} exceeds maximum length (10,000 characters)",
+                i
+            ));
+        }
+        
+        // Check for null bytes which could be used for command injection
+        if arg.contains('\0') {
+            return Err(format!(
+                "Argument {} contains null bytes which are not allowed",
+                i
+            ));
+        }
+    }
+    
     crate::python_runtime::execute_python_script(&script_path, args)
 }
 
@@ -493,6 +516,15 @@ fn execute_python_command_runtime(
     command: &str,
     args: Vec<String>,
 ) -> Result<String, String> {
+    // SECURITY: Validate command string
+    if command.len() > 100 {
+        return Err("Command name exceeds maximum length (100 characters)".to_string());
+    }
+    
+    if command.contains('\0') {
+        return Err("Command name contains null bytes which are not allowed".to_string());
+    }
+    
     let mut cmd_args = vec![command.to_string()];
     cmd_args.extend(args);
     execute_python_script_runtime(script_name, cmd_args)
@@ -510,7 +542,9 @@ fn get_optional_string(args: &Value, key: &str) -> Option<String> {
 }
 
 fn get_optional_i32(args: &Value, key: &str) -> Option<i32> {
-    args.get(key).and_then(|v| v.as_i64()).map(|v| v as i32)
+    args.get(key)
+        .and_then(|v| v.as_i64())
+        .and_then(|v| i32::try_from(v).ok())
 }
 
 fn get_optional_bool(args: &Value, key: &str) -> Option<bool> {
@@ -538,8 +572,18 @@ async fn dispatch_execute_polygon_command(args: Value) -> RpcResponse {
         Ok(list) => list,
         Err(e) => return RpcResponse::err(e),
     };
-    if let Some(api_key) = get_optional_string(&args, "apiKey").or_else(|| get_optional_string(&args, "api_key")) {
-        std::env::set_var("POLYGON_API_KEY", api_key);
+    
+    // SECURITY NOTE: API key should be set externally via POLYGON_API_KEY environment variable
+    // Accepting API keys via request parameters was removed due to:
+    // 1. Process-wide environment variable modification affects all concurrent requests
+    // 2. Race conditions where one request's API key could be used for another request
+    // 3. Potential exposure to other code in the process
+    // Configure POLYGON_API_KEY before starting the server instead.
+    if args.get("apiKey").is_some() || args.get("api_key").is_some() {
+        return RpcResponse::err(
+            "API key configuration via request parameters is not supported for security reasons. \
+             Please set POLYGON_API_KEY environment variable before starting the server."
+        );
     }
 
     match execute_python_command_runtime("polygon_data.py", &command, command_args) {
@@ -689,7 +733,10 @@ async fn dispatch_get_alphavantage_market_movers() -> RpcResponse {
 
 async fn dispatch_pmdarima_fit_auto_arima(args: Value) -> RpcResponse {
     let data: Vec<f64> = match args.get("data").cloned() {
-        Some(value) => serde_json::from_value(value).unwrap_or_default(),
+        Some(value) => match serde_json::from_value(value) {
+            Ok(parsed) => parsed,
+            Err(e) => return RpcResponse::err(format!("Invalid 'data' parameter: {}", e)),
+        },
         None => return RpcResponse::err("Missing 'data' parameter"),
     };
 
@@ -709,7 +756,10 @@ async fn dispatch_pmdarima_fit_auto_arima(args: Value) -> RpcResponse {
 
 async fn dispatch_pmdarima_forecast_auto_arima(args: Value) -> RpcResponse {
     let data: Vec<f64> = match args.get("data").cloned() {
-        Some(value) => serde_json::from_value(value).unwrap_or_default(),
+        Some(value) => match serde_json::from_value(value) {
+            Ok(parsed) => parsed,
+            Err(e) => return RpcResponse::err(format!("Invalid 'data' parameter: {}", e)),
+        },
         None => return RpcResponse::err("Missing 'data' parameter"),
     };
     let n_periods = match get_optional_i32(&args, "n_periods") {
@@ -733,7 +783,10 @@ async fn dispatch_pmdarima_forecast_auto_arima(args: Value) -> RpcResponse {
 
 async fn dispatch_pmdarima_forecast_arima(args: Value) -> RpcResponse {
     let data: Vec<f64> = match args.get("data").cloned() {
-        Some(value) => serde_json::from_value(value).unwrap_or_default(),
+        Some(value) => match serde_json::from_value(value) {
+            Ok(parsed) => parsed,
+            Err(e) => return RpcResponse::err(format!("Invalid 'data' parameter: {}", e)),
+        },
         None => return RpcResponse::err("Missing 'data' parameter"),
     };
     let p = match get_optional_i32(&args, "p") {
@@ -771,7 +824,10 @@ async fn dispatch_pmdarima_forecast_arima(args: Value) -> RpcResponse {
 
 async fn dispatch_pmdarima_boxcox_transform(args: Value) -> RpcResponse {
     let data: Vec<f64> = match args.get("data").cloned() {
-        Some(value) => serde_json::from_value(value).unwrap_or_default(),
+        Some(value) => match serde_json::from_value(value) {
+            Ok(parsed) => parsed,
+            Err(e) => return RpcResponse::err(format!("Invalid 'data' parameter: {}", e)),
+        },
         None => return RpcResponse::err("Missing 'data' parameter"),
     };
 
@@ -783,7 +839,10 @@ async fn dispatch_pmdarima_boxcox_transform(args: Value) -> RpcResponse {
 
 async fn dispatch_pmdarima_inverse_boxcox(args: Value) -> RpcResponse {
     let data: Vec<f64> = match args.get("data").cloned() {
-        Some(value) => serde_json::from_value(value).unwrap_or_default(),
+        Some(value) => match serde_json::from_value(value) {
+            Ok(parsed) => parsed,
+            Err(e) => return RpcResponse::err(format!("Invalid 'data' parameter: {}", e)),
+        },
         None => return RpcResponse::err("Missing 'data' parameter"),
     };
     let lambda = match args.get("lambda").and_then(|v| v.as_f64()) {
@@ -799,7 +858,10 @@ async fn dispatch_pmdarima_inverse_boxcox(args: Value) -> RpcResponse {
 
 async fn dispatch_pmdarima_calculate_acf(args: Value) -> RpcResponse {
     let data: Vec<f64> = match args.get("data").cloned() {
-        Some(value) => serde_json::from_value(value).unwrap_or_default(),
+        Some(value) => match serde_json::from_value(value) {
+            Ok(parsed) => parsed,
+            Err(e) => return RpcResponse::err(format!("Invalid 'data' parameter: {}", e)),
+        },
         None => return RpcResponse::err("Missing 'data' parameter"),
     };
 
@@ -811,7 +873,10 @@ async fn dispatch_pmdarima_calculate_acf(args: Value) -> RpcResponse {
 
 async fn dispatch_pmdarima_calculate_pacf(args: Value) -> RpcResponse {
     let data: Vec<f64> = match args.get("data").cloned() {
-        Some(value) => serde_json::from_value(value).unwrap_or_default(),
+        Some(value) => match serde_json::from_value(value) {
+            Ok(parsed) => parsed,
+            Err(e) => return RpcResponse::err(format!("Invalid 'data' parameter: {}", e)),
+        },
         None => return RpcResponse::err("Missing 'data' parameter"),
     };
 
@@ -823,7 +888,10 @@ async fn dispatch_pmdarima_calculate_pacf(args: Value) -> RpcResponse {
 
 async fn dispatch_pmdarima_decompose_timeseries(args: Value) -> RpcResponse {
     let data: Vec<f64> = match args.get("data").cloned() {
-        Some(value) => serde_json::from_value(value).unwrap_or_default(),
+        Some(value) => match serde_json::from_value(value) {
+            Ok(parsed) => parsed,
+            Err(e) => return RpcResponse::err(format!("Invalid 'data' parameter: {}", e)),
+        },
         None => return RpcResponse::err("Missing 'data' parameter"),
     };
     let decomp_type = match get_required_string(&args, "decomp_type") {
@@ -843,7 +911,10 @@ async fn dispatch_pmdarima_decompose_timeseries(args: Value) -> RpcResponse {
 
 async fn dispatch_pmdarima_cross_validate(args: Value) -> RpcResponse {
     let data: Vec<f64> = match args.get("data").cloned() {
-        Some(value) => serde_json::from_value(value).unwrap_or_default(),
+        Some(value) => match serde_json::from_value(value) {
+            Ok(parsed) => parsed,
+            Err(e) => return RpcResponse::err(format!("Invalid 'data' parameter: {}", e)),
+        },
         None => return RpcResponse::err("Missing 'data' parameter"),
     };
     let p = match get_optional_i32(&args, "p") {
