@@ -77,10 +77,20 @@ pub async fn run_server(config: ServerConfig) -> Result<(), Box<dyn std::error::
                 .iter()
                 .filter_map(|origin| HeaderValue::from_str(origin).ok())
                 .collect();
-            CorsLayer::new()
-                .allow_origin(AllowOrigin::list(allowed_origins))
-                .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
-                .allow_headers(Any)
+            
+            if allowed_origins.is_empty() {
+                // Fallback: no valid origins configured, treat as wildcard to avoid
+                // silently denying all cross-origin requests with CORS enabled.
+                CorsLayer::new()
+                    .allow_origin(Any)
+                    .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
+                    .allow_headers(Any)
+            } else {
+                CorsLayer::new()
+                    .allow_origin(AllowOrigin::list(allowed_origins))
+                    .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
+                    .allow_headers(Any)
+            }
         };
 
         app.layer(cors)

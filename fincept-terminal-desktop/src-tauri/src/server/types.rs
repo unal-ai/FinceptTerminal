@@ -29,17 +29,21 @@ pub struct RpcResponse {
 impl RpcResponse {
     /// Create a successful response
     pub fn ok<T: Serialize>(data: T) -> Self {
-        let data_value = match serde_json::to_value(data) {
-            Ok(value) => value,
+        match serde_json::to_value(data) {
+            Ok(data_value) => Self {
+                success: true,
+                data: Some(data_value),
+                error: None,
+            },
             Err(e) => {
+                // Serialization failed - return error response instead of masking the error
                 eprintln!("RpcResponse::ok: failed to serialize response data: {}", e);
-                serde_json::Value::Null
+                Self {
+                    success: false,
+                    data: None,
+                    error: Some(format!("Failed to serialize response: {}", e)),
+                }
             }
-        };
-        Self {
-            success: true,
-            data: Some(data_value),
-            error: None,
         }
     }
 
