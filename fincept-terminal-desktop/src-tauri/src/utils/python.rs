@@ -280,9 +280,26 @@ pub fn get_script_path_for_runtime(
     script_name: &str,
 ) -> Result<PathBuf, String> {
     // SECURITY: Validate script_name to prevent path traversal attacks
+    // Check for null bytes, path separators, and parent directory references
+    if script_name.contains('\0') {
+        return Err(format!(
+            "Invalid script name '{}': null bytes not allowed",
+            script_name.escape_debug()
+        ));
+    }
+    
     if script_name.contains("..") || script_name.contains("/") || script_name.contains("\\") {
         return Err(format!(
             "Invalid script name '{}': path traversal not allowed",
+            script_name
+        ));
+    }
+    
+    // Additional validation: script name should only contain safe characters
+    // Allow alphanumeric, underscore, hyphen, and dot (for file extensions)
+    if !script_name.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-' || c == '.') {
+        return Err(format!(
+            "Invalid script name '{}': only alphanumeric characters, underscores, hyphens, and dots allowed",
             script_name
         ));
     }
@@ -305,6 +322,10 @@ pub fn get_script_path_for_runtime(
             ));
         }
         
+        // NOTE: TOCTOU (Time-Of-Check-Time-Of-Use) limitation:
+        // Between this existence check and actual script execution, the directory
+        // could be deleted or replaced. This is a difficult-to-exploit race condition,
+        // but the error will be handled gracefully during script execution if it occurs.
         if !custom_path.exists() {
             return Err(format!(
                 "FINCEPT_SCRIPTS_PATH directory does not exist: {}",
@@ -372,4 +393,74 @@ pub fn execute_python_script_simple(
 
     // Execute with PyO3
     crate::python_runtime::execute_python_script(&script_path, args_vec)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_script_path_for_runtime_path_traversal_with_double_dots() {
+        let result = get_script_path_for_runtime(None, "../../../etc/passwd");
+        
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("path traversal not allowed"));
+    }
+
+    #[test]
+    fn test_get_script_path_for_runtime_path_traversal_with_forward_slash() {
+        let result = get_script_path_for_runtime(None, "scripts/../../etc/passwd");
+        
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("path traversal not allowed"));
+    }
+
+    #[test]
+    fn test_get_script_path_for_runtime_path_traversal_with_backslash() {
+        let result = get_script_path_for_runtime(None, "scripts\\..\\..\\windows\\system32");
+        
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("path traversal not allowed"));
+    }
+
+    #[test]
+    fn test_get_script_path_for_runtime_null_byte() {
+        let script_with_null = format!("script{}.py", '\0');
+        let result = get_script_path_for_runtime(None, &script_with_null);
+        
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("null bytes not allowed"));
+    }
+
+    #[test]
+    fn test_get_script_path_for_runtime_invalid_characters() {
+        let result = get_script_path_for_runtime(None, "script;rm -rf /.py");
+        
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error.contains("only alphanumeric characters"));
+    }
+
+    #[test]
+    fn test_get_script_path_for_runtime_valid_script_name() {
+        // This will fail because the script doesn't exist, but it should pass validation
+        let result = get_script_path_for_runtime(None, "test_script.py");
+        
+        // The error should be about not finding the script, not validation failure
+        if let Err(e) = result {
+            assert!(e.contains("not found") || e.contains("Script"));
+            assert!(!e.contains("path traversal"));
+            assert!(!e.contains("null bytes"));
+        }
+    }
+
+    #[test]
+    fn test_get_script_path_for_runtime_valid_with_underscores_and_hyphens() {
+        let result = get_script_path_for_runtime(None, "my_test-script.py");
+        
+        if let Err(e) = result {
+            assert!(e.contains("not found"));
+            assert!(!e.contains("only alphanumeric"));
+        }
+    }
 }

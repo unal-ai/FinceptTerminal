@@ -490,6 +490,14 @@ fn execute_python_script_runtime(script_name: &str, args: Vec<String>) -> Result
     let script_path = crate::utils::python::get_script_path_for_runtime(None, script_name)?;
     
     // SECURITY: Basic input validation for command-line arguments
+    // Validate argument count to prevent abuse
+    if args.len() > 100 {
+        return Err(format!(
+            "Too many arguments: {} provided, maximum 100 allowed",
+            args.len()
+        ));
+    }
+    
     // Validate argument length to prevent potential buffer overflow or DoS
     for (i, arg) in args.iter().enumerate() {
         if arg.len() > 10_000 {
@@ -500,10 +508,10 @@ fn execute_python_script_runtime(script_name: &str, args: Vec<String>) -> Result
         }
         
         // Check for null bytes which could be used for command injection
-        if arg.contains('\0') {
+        if let Some(pos) = arg.find('\0') {
             return Err(format!(
-                "Argument {} contains null bytes which are not allowed",
-                i
+                "Argument {} contains null byte at position {} which is not allowed",
+                i, pos
             ));
         }
     }
@@ -545,6 +553,19 @@ fn get_optional_i32(args: &Value, key: &str) -> Option<i32> {
     args.get(key)
         .and_then(|v| v.as_i64())
         .and_then(|v| i32::try_from(v).ok())
+}
+
+fn get_required_i32(args: &Value, key: &str) -> Result<i32, String> {
+    let value = args
+        .get(key)
+        .ok_or_else(|| format!("Missing '{}' parameter", key))?;
+
+    let int_value = value
+        .as_i64()
+        .ok_or_else(|| format!("Invalid '{}' parameter: expected integer", key))?;
+
+    i32::try_from(int_value)
+        .map_err(|_| format!("Invalid '{}' parameter: value {} out of range for i32", key, int_value))
 }
 
 fn get_optional_bool(args: &Value, key: &str) -> Option<bool> {
@@ -783,9 +804,9 @@ async fn dispatch_pmdarima_forecast_auto_arima(args: Value) -> RpcResponse {
         },
         None => return RpcResponse::err("Missing 'data' parameter"),
     };
-    let n_periods = match get_optional_i32(&args, "n_periods") {
-        Some(value) => value,
-        None => return RpcResponse::err("Missing 'n_periods' parameter"),
+    let n_periods = match get_required_i32(&args, "n_periods") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
     };
 
     match crate::commands::pmdarima::pmdarima_forecast_auto_arima(
@@ -810,21 +831,21 @@ async fn dispatch_pmdarima_forecast_arima(args: Value) -> RpcResponse {
         },
         None => return RpcResponse::err("Missing 'data' parameter"),
     };
-    let p = match get_optional_i32(&args, "p") {
-        Some(value) => value,
-        None => return RpcResponse::err("Missing 'p' parameter"),
+    let p = match get_required_i32(&args, "p") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
     };
-    let d = match get_optional_i32(&args, "d") {
-        Some(value) => value,
-        None => return RpcResponse::err("Missing 'd' parameter"),
+    let d = match get_required_i32(&args, "d") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
     };
-    let q = match get_optional_i32(&args, "q") {
-        Some(value) => value,
-        None => return RpcResponse::err("Missing 'q' parameter"),
+    let q = match get_required_i32(&args, "q") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
     };
-    let n_periods = match get_optional_i32(&args, "n_periods") {
-        Some(value) => value,
-        None => return RpcResponse::err("Missing 'n_periods' parameter"),
+    let n_periods = match get_required_i32(&args, "n_periods") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
     };
 
     match crate::commands::pmdarima::pmdarima_forecast_arima(
@@ -919,9 +940,9 @@ async fn dispatch_pmdarima_decompose_timeseries(args: Value) -> RpcResponse {
         Ok(value) => value,
         Err(e) => return RpcResponse::err(e),
     };
-    let period = match get_optional_i32(&args, "period") {
-        Some(value) => value,
-        None => return RpcResponse::err("Missing 'period' parameter"),
+    let period = match get_required_i32(&args, "period") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
     };
 
     match crate::commands::pmdarima::pmdarima_decompose_timeseries(data, decomp_type, period).await {
@@ -938,21 +959,21 @@ async fn dispatch_pmdarima_cross_validate(args: Value) -> RpcResponse {
         },
         None => return RpcResponse::err("Missing 'data' parameter"),
     };
-    let p = match get_optional_i32(&args, "p") {
-        Some(value) => value,
-        None => return RpcResponse::err("Missing 'p' parameter"),
+    let p = match get_required_i32(&args, "p") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
     };
-    let d = match get_optional_i32(&args, "d") {
-        Some(value) => value,
-        None => return RpcResponse::err("Missing 'd' parameter"),
+    let d = match get_required_i32(&args, "d") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
     };
-    let q = match get_optional_i32(&args, "q") {
-        Some(value) => value,
-        None => return RpcResponse::err("Missing 'q' parameter"),
+    let q = match get_required_i32(&args, "q") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
     };
-    let cv_splits = match get_optional_i32(&args, "cv_splits") {
-        Some(value) => value,
-        None => return RpcResponse::err("Missing 'cv_splits' parameter"),
+    let cv_splits = match get_required_i32(&args, "cv_splits") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
     };
 
     match crate::commands::pmdarima::pmdarima_cross_validate(data, p, d, q, cv_splits).await {
@@ -2648,5 +2669,95 @@ mod tests {
         
         assert!(response.error.is_some());
         assert_eq!(response.error.unwrap(), "Missing 'serverId' parameter");
+    }
+
+    // ============================================================================
+    // SECURITY VALIDATION TESTS
+    // ============================================================================
+
+    #[test]
+    fn test_execute_python_script_runtime_oversized_argument() {
+        let large_arg = "a".repeat(10_001);
+        let result = execute_python_script_runtime("test.py", vec![large_arg]);
+        
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("exceeds maximum length"));
+    }
+
+    #[test]
+    fn test_execute_python_script_runtime_null_byte_in_argument() {
+        let arg_with_null = format!("test{}data", '\0');
+        let result = execute_python_script_runtime("test.py", vec![arg_with_null]);
+        
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error.contains("null byte"));
+        assert!(error.contains("at position 4"));
+    }
+
+    #[test]
+    fn test_execute_python_script_runtime_too_many_arguments() {
+        let args: Vec<String> = (0..101).map(|i| format!("arg{}", i)).collect();
+        let result = execute_python_script_runtime("test.py", args);
+        
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Too many arguments"));
+        assert!(result.unwrap_err().contains("101 provided"));
+    }
+
+    #[test]
+    fn test_execute_python_command_runtime_null_byte_in_command() {
+        let command_with_null = format!("test{}cmd", '\0');
+        let result = execute_python_command_runtime("test.py", &command_with_null, vec![]);
+        
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("null bytes which are not allowed"));
+    }
+
+    #[test]
+    fn test_execute_python_command_runtime_oversized_command() {
+        let large_command = "a".repeat(101);
+        let result = execute_python_command_runtime("test.py", &large_command, vec![]);
+        
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("exceeds maximum length (100 characters)"));
+    }
+
+    #[test]
+    fn test_get_required_i32_missing_parameter() {
+        let args = serde_json::json!({});
+        let result = get_required_i32(&args, "test_param");
+        
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "Missing 'test_param' parameter");
+    }
+
+    #[test]
+    fn test_get_required_i32_invalid_type() {
+        let args = serde_json::json!({"test_param": "not_a_number"});
+        let result = get_required_i32(&args, "test_param");
+        
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("expected integer"));
+    }
+
+    #[test]
+    fn test_get_required_i32_out_of_range() {
+        let args = serde_json::json!({"test_param": 3_000_000_000_i64}); // Larger than i32::MAX
+        let result = get_required_i32(&args, "test_param");
+        
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error.contains("out of range"));
+        assert!(error.contains("3000000000"));
+    }
+
+    #[test]
+    fn test_get_required_i32_valid() {
+        let args = serde_json::json!({"test_param": 42});
+        let result = get_required_i32(&args, "test_param");
+        
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 42);
     }
 }
