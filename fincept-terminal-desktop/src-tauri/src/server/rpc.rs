@@ -191,11 +191,17 @@ async fn dispatch_spawn_mcp_server(
         None => return RpcResponse::err("Missing 'command' parameter"),
     };
     let command_args: Vec<String> = match args.get("args") {
-        Some(value) => serde_json::from_value(value.clone()).unwrap_or_default(),
+        Some(value) => match serde_json::from_value(value.clone()) {
+            Ok(v) => v,
+            Err(e) => return RpcResponse::err(format!("Invalid 'args' parameter: {}", e)),
+        },
         None => Vec::new(),
     };
     let env: HashMap<String, String> = match args.get("env") {
-        Some(value) => serde_json::from_value(value.clone()).unwrap_or_default(),
+        Some(value) => match serde_json::from_value(value.clone()) {
+            Ok(v) => v,
+            Err(e) => return RpcResponse::err(format!("Invalid 'env' parameter: {}", e)),
+        },
         None => HashMap::new(),
     };
 
