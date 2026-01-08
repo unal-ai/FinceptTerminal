@@ -2,6 +2,8 @@
 // These types mirror the JSON-RPC protocol used by Tauri's invoke system
 
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::AtomicU64;
+use std::time::Instant;
 
 /// RPC Request - mirrors Tauri's invoke pattern
 #[derive(Debug, Clone, Deserialize)]
@@ -79,6 +81,14 @@ pub struct ServerConfig {
     pub cors_enabled: bool,
     /// Allowed origins for CORS
     pub cors_origins: Vec<String>,
+}
+
+/// Server state shared across handlers
+pub struct ServerState {
+    pub start_time: Instant,
+    pub config: ServerConfig,
+    pub request_count: AtomicU64,
+    pub ws_state: crate::WebSocketState,
 }
 
 impl Default for ServerConfig {

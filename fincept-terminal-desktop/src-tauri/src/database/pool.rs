@@ -86,7 +86,7 @@ pub async fn init_database() -> Result<DbPool> {
 }
 
 /// Get database file path - platform-specific app data directories
-fn get_db_path() -> Result<std::path::PathBuf> {
+pub fn get_db_path() -> Result<std::path::PathBuf> {
     let db_dir = get_data_dir()?;
     Ok(db_dir.join("fincept_terminal.db"))
 }

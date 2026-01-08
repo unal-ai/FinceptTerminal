@@ -5,7 +5,7 @@
 // - POST /api/rpc - JSON-RPC endpoint for all commands
 // - GET /api/health - Health check endpoint
 // - GET /api/ready - Readiness check endpoint
-// - WS /ws - WebSocket endpoint for real-time data (future)
+// - WS /ws - WebSocket endpoint for real-time data
 //
 // Production Features:
 // - Request tracing with unique request IDs
@@ -17,13 +17,17 @@
 // Run with: cargo run --bin fincept-server --features web
 
 use axum::{
-    extract::State,
+    extract::{
+        ws::{Message, WebSocket, WebSocketUpgrade},
+        State,
+    },
     http::{HeaderValue, Method, Request, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
 };
+use futures::{SinkExt, StreamExt};
 use std::sync::Arc;
 use std::time::Instant;
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
@@ -31,14 +35,7 @@ use tower_http::trace::TraceLayer;
 use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
 
 use super::rpc::dispatch;
-use super::types::{HealthResponse, RpcRequest, ServerConfig};
-
-/// Server state with startup time for uptime tracking
-pub struct ServerState {
-    pub start_time: Instant,
-    pub config: ServerConfig,
-    pub request_count: std::sync::atomic::AtomicU64,
-}
+use super::types::{HealthResponse, RpcRequest, ServerConfig, ServerState};
 
 /// Start the Axum web server
 pub async fn run_server(config: ServerConfig) -> Result<(), Box<dyn std::error::Error>> {
@@ -49,6 +46,7 @@ pub async fn run_server(config: ServerConfig) -> Result<(), Box<dyn std::error::
         start_time: Instant::now(),
         config: config.clone(),
         request_count: std::sync::atomic::AtomicU64::new(0),
+        ws_state: init_websocket_state().await?,
     });
 
     // Request ID layer for tracing
@@ -60,6 +58,7 @@ pub async fn run_server(config: ServerConfig) -> Result<(), Box<dyn std::error::
         .route("/api/health", get(health_handler))
         .route("/api/ready", get(ready_handler))
         .route("/", get(index_handler))
+        .route("/ws", get(ws_handler))
         .layer(middleware::from_fn_with_state(server_state.clone(), request_logging_middleware))
         .layer(PropagateRequestIdLayer::new(x_request_id.clone()))
         .layer(SetRequestIdLayer::new(x_request_id.clone(), MakeRequestUuid))
@@ -114,6 +113,7 @@ pub async fn run_server(config: ServerConfig) -> Result<(), Box<dyn std::error::
     println!("║  • GET  /api/health - Health check                        ║");
     println!("║  • GET  /api/ready  - Readiness check                     ║");
     println!("║  • GET  /           - API documentation                   ║");
+    println!("║  • WS   /ws         - Real-time data stream               ║");
     println!("╠═══════════════════════════════════════════════════════════╣");
     println!("║  Features:                                                ║");
     println!("║  ✓ Request tracing with X-Request-ID                      ║");
@@ -182,12 +182,13 @@ async fn request_logging_middleware(
 /// RPC endpoint handler
 /// Accepts JSON-RPC style requests and dispatches to command handlers
 async fn rpc_handler(
+    State(state): State<Arc<ServerState>>,
     Json(request): Json<RpcRequest>,
 ) -> impl IntoResponse {
     let cmd = request.cmd.clone();
     tracing::debug!(command = %cmd, "Processing RPC command");
     
-    let response = dispatch(request).await;
+    let response = dispatch(state, request).await;
     
     if response.success {
         tracing::debug!(command = %cmd, "RPC command succeeded");
@@ -196,6 +197,190 @@ async fn rpc_handler(
     }
     
     Json(response)
+}
+
+/// WebSocket handler for real-time data streaming
+async fn ws_handler(
+    ws: WebSocketUpgrade,
+    State(state): State<Arc<ServerState>>,
+) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| handle_ws(socket, state))
+}
+
+async fn handle_ws(socket: WebSocket, state: Arc<ServerState>) {
+    let (mut sender, mut receiver) = socket.split();
+    // Use bounded channel with reasonable buffer size (1000 messages)
+    // If client is slow and channel becomes full, new messages will be dropped to prevent memory growth
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<Message>(1000);
+
+    let (mut ticker_rx, mut orderbook_rx, mut trade_rx, mut candle_rx, mut status_rx) = {
+        let router = state.ws_state.router.read().await;
+        (
+            router.subscribe_ticker(),
+            router.subscribe_orderbook(),
+            router.subscribe_trade(),
+            router.subscribe_candle(),
+            router.subscribe_status(),
+        )
+    };
+
+    let send_task = tokio::spawn(async move {
+        while let Some(message) = rx.recv().await {
+            if sender.send(message).await.is_err() {
+                break;
+            }
+        }
+    });
+
+    let tx_clone = tx.clone();
+    let ticker_task = tokio::spawn(async move {
+        while let Ok(data) = ticker_rx.recv().await {
+            let payload = serde_json::json!({
+                "event": "ws_ticker",
+                "data": data,
+            });
+            let message_text = payload.to_string();
+            match tx_clone.try_send(Message::Text(message_text)) {
+                Ok(_) => {}
+                Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
+                    tracing::warn!("WebSocket channel full, dropping ticker message");
+                }
+                Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => break,
+            }
+        }
+    });
+
+    let tx_clone = tx.clone();
+    let orderbook_task = tokio::spawn(async move {
+        while let Ok(data) = orderbook_rx.recv().await {
+            let payload = serde_json::json!({
+                "event": "ws_orderbook",
+                "data": data,
+            });
+            let message_text = payload.to_string();
+            match tx_clone.try_send(Message::Text(message_text)) {
+                Ok(_) => {}
+                Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
+                    tracing::warn!("WebSocket channel full, dropping orderbook message");
+                }
+                Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => break,
+            }
+        }
+    });
+
+    let tx_clone = tx.clone();
+    let trade_task = tokio::spawn(async move {
+        while let Ok(data) = trade_rx.recv().await {
+            let payload = serde_json::json!({
+                "event": "ws_trade",
+                "data": data,
+            });
+            let message_text = payload.to_string();
+            match tx_clone.try_send(Message::Text(message_text)) {
+                Ok(_) => {}
+                Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
+                    tracing::warn!("WebSocket channel full, dropping trade message");
+                }
+                Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => break,
+            }
+        }
+    });
+
+    let tx_clone = tx.clone();
+    let candle_task = tokio::spawn(async move {
+        while let Ok(data) = candle_rx.recv().await {
+            let payload = serde_json::json!({
+                "event": "ws_candle",
+                "data": data,
+            });
+            let message_text = payload.to_string();
+            match tx_clone.try_send(Message::Text(message_text)) {
+                Ok(_) => {}
+                Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
+                    tracing::warn!("WebSocket channel full, dropping candle message");
+                }
+                Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => break,
+            }
+        }
+    });
+
+    let tx_clone = tx.clone();
+    let status_task = tokio::spawn(async move {
+        while let Ok(data) = status_rx.recv().await {
+            let payload = serde_json::json!({
+                "event": "ws_status",
+                "data": data,
+            });
+            let message_text = payload.to_string();
+            match tx_clone.try_send(Message::Text(message_text)) {
+                Ok(_) => {}
+                Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
+                    tracing::warn!("WebSocket channel full, dropping status message");
+                }
+                Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => break,
+            }
+        }
+    });
+
+    while let Some(message) = receiver.next().await {
+        match message {
+            Ok(Message::Close(_)) | Err(_) => break,
+            Ok(Message::Ping(data)) => {
+                // Respond to ping with pong to keep connection alive
+                // Use try_send to avoid blocking like other message handlers
+                match tx.try_send(Message::Pong(data)) {
+                    Ok(_) => {}
+                    Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
+                        tracing::warn!("WebSocket channel full, dropping ping/pong message");
+                    }
+                    Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => break,
+                }
+            }
+            Ok(Message::Pong(_)) => {
+                // Pong received, connection is alive
+            }
+            _ => {}
+        }
+    }
+
+    ticker_task.abort();
+    orderbook_task.abort();
+    trade_task.abort();
+    candle_task.abort();
+    status_task.abort();
+    send_task.abort();
+}
+
+async fn init_websocket_state() -> Result<crate::WebSocketState, Box<dyn std::error::Error>> {
+    let router = Arc::new(tokio::sync::RwLock::new(crate::websocket::MessageRouter::new()));
+    let manager = Arc::new(tokio::sync::RwLock::new(crate::websocket::WebSocketManager::new(router.clone())));
+    
+    let db_path = crate::database::pool::get_db_path()?
+        .to_string_lossy()
+        .to_string();
+    
+    let monitoring_service = crate::websocket::services::MonitoringService::new(db_path);
+    let services = Arc::new(tokio::sync::RwLock::new(crate::WebSocketServices {
+        paper_trading: crate::websocket::services::PaperTradingService::new(),
+        arbitrage: crate::websocket::services::ArbitrageService::new(),
+        portfolio: crate::websocket::services::PortfolioService::new(),
+        monitoring: monitoring_service,
+    }));
+
+    let ws_state = crate::WebSocketState {
+        manager: manager.clone(),
+        router: router.clone(),
+        services: services.clone(),
+    };
+
+    let mut services_guard = services.write().await;
+    let ticker_rx = router.read().await.subscribe_ticker();
+    services_guard.monitoring.start_monitoring(ticker_rx);
+    if let Err(err) = services_guard.monitoring.load_conditions().await {
+        tracing::warn!(error = %err, "Failed to load monitoring conditions");
+    }
+
+    Ok(ws_state)
 }
 
 /// Health check endpoint - always returns healthy if server is running
