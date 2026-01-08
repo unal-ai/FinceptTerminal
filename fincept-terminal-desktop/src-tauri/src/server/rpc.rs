@@ -15,9 +15,7 @@ pub async fn dispatch(state: Arc<ServerState>, request: RpcRequest) -> RpcRespon
     let args = request.args;
     
     match request.cmd.as_str() {
-        // ============================================================================
         // BASIC COMMANDS
-        // ============================================================================
         "greet" => {
             let name = args.get("name")
                 .and_then(|v| v.as_str())
@@ -25,9 +23,7 @@ pub async fn dispatch(state: Arc<ServerState>, request: RpcRequest) -> RpcRespon
             RpcResponse::ok(format!("Hello, {}! You've been greeted from Rust Web Server!", name))
         }
 
-        // ============================================================================
         // MARKET DATA COMMANDS
-        // ============================================================================
         "get_market_quote" => dispatch_market_quote(args).await,
         "get_market_quotes" => dispatch_market_quotes(args).await,
         "get_period_returns" => dispatch_period_returns(args).await,
@@ -36,16 +32,12 @@ pub async fn dispatch(state: Arc<ServerState>, request: RpcRequest) -> RpcRespon
         "get_stock_info" => dispatch_stock_info(args).await,
         "get_financials" => dispatch_financials(args).await,
 
-        // ============================================================================
         // NEWS COMMANDS
-        // ============================================================================
         "fetch_all_rss_news" => dispatch_fetch_all_rss_news().await,
         "get_rss_feed_count" => dispatch_get_rss_feed_count().await,
         "get_active_sources" => dispatch_get_active_sources().await,
 
-        // ============================================================================
         // PYTHON DATA SOURCES
-        // ============================================================================
         "execute_polygon_command" => dispatch_execute_polygon_command(args).await,
         "execute_yfinance_command" => dispatch_execute_yfinance_command(args).await,
         "execute_edgar_command" => dispatch_execute_edgar_command(args).await,
@@ -58,9 +50,7 @@ pub async fn dispatch(state: Arc<ServerState>, request: RpcRequest) -> RpcRespon
         "get_alphavantage_comprehensive" => dispatch_get_alphavantage_comprehensive(args).await,
         "get_alphavantage_market_movers" => dispatch_get_alphavantage_market_movers().await,
 
-        // ============================================================================
         // PMDARIMA COMMANDS
-        // ============================================================================
         "pmdarima_fit_auto_arima" => dispatch_pmdarima_fit_auto_arima(args).await,
         "pmdarima_forecast_auto_arima" => dispatch_pmdarima_forecast_auto_arima(args).await,
         "pmdarima_forecast_arima" => dispatch_pmdarima_forecast_arima(args).await,
@@ -71,9 +61,7 @@ pub async fn dispatch(state: Arc<ServerState>, request: RpcRequest) -> RpcRespon
         "pmdarima_decompose_timeseries" => dispatch_pmdarima_decompose_timeseries(args).await,
         "pmdarima_cross_validate" => dispatch_pmdarima_cross_validate(args).await,
 
-        // ============================================================================
         // GOVERNMENT & MACRO COMMANDS
-        // ============================================================================
         "execute_government_us_command" => dispatch_execute_government_us_command(args).await,
         "get_treasury_prices" => dispatch_get_treasury_prices(args).await,
         "get_treasury_auctions" => dispatch_get_treasury_auctions(args).await,
@@ -101,58 +89,44 @@ pub async fn dispatch(state: Arc<ServerState>, request: RpcRequest) -> RpcRespon
         "get_imf_reserves_data" => dispatch_get_imf_reserves_data(args).await,
         "get_imf_trade_summary" => dispatch_get_imf_trade_summary(args).await,
 
-        // ============================================================================
         // DATABASE HEALTH & SETTINGS COMMANDS
-        // ============================================================================
         "db_check_health" => dispatch_db_health().await,
         "db_get_all_settings" => dispatch_db_get_all_settings().await,
         "db_get_setting" => dispatch_db_get_setting(args).await,
         "db_save_setting" => dispatch_db_save_setting(args).await,
 
-        // ============================================================================
         // CREDENTIALS COMMANDS
-        // ============================================================================
         "db_get_credentials" => dispatch_db_get_credentials().await,
         "db_save_credential" => dispatch_db_save_credential(args).await,
         "db_get_credential_by_service" => dispatch_db_get_credential_by_service(args).await,
         "db_delete_credential" => dispatch_db_delete_credential(args).await,
 
-        // ============================================================================
         // LLM CONFIG COMMANDS
-        // ============================================================================
         "db_get_llm_configs" => dispatch_db_get_llm_configs().await,
         "db_save_llm_config" => dispatch_db_save_llm_config(args).await,
         "db_get_llm_global_settings" => dispatch_db_get_llm_global_settings().await,
         "db_save_llm_global_settings" => dispatch_db_save_llm_global_settings(args).await,
 
-        // ============================================================================
         // CHAT SESSION COMMANDS
-        // ============================================================================
         "db_create_chat_session" => dispatch_db_create_chat_session(args).await,
         "db_get_chat_sessions" => dispatch_db_get_chat_sessions(args).await,
         "db_add_chat_message" => dispatch_db_add_chat_message(args).await,
         "db_get_chat_messages" => dispatch_db_get_chat_messages(args).await,
         "db_delete_chat_session" => dispatch_db_delete_chat_session(args).await,
 
-        // ============================================================================
         // DATA SOURCE COMMANDS
-        // ============================================================================
         "db_get_all_data_sources" => dispatch_db_get_all_data_sources().await,
         "db_save_data_source" => dispatch_db_save_data_source(args).await,
         "db_delete_data_source" => dispatch_db_delete_data_source(args).await,
 
-        // ============================================================================
         // PORTFOLIO COMMANDS
-        // ============================================================================
         "db_list_portfolios" => dispatch_db_list_portfolios().await,
         "db_get_portfolio" => dispatch_db_get_portfolio(args).await,
         "db_create_portfolio" => dispatch_db_create_portfolio(args).await,
         "db_delete_portfolio" => dispatch_db_delete_portfolio(args).await,
         "db_update_portfolio_balance" => dispatch_db_update_portfolio_balance(args).await,
 
-        // ============================================================================
         // PAPER TRADING - POSITIONS
-        // ============================================================================
         "db_create_position" => dispatch_db_create_position(args).await,
         "db_get_portfolio_positions" => dispatch_db_get_portfolio_positions(args).await,
         "db_get_position" => dispatch_db_get_position(args).await,
@@ -161,9 +135,7 @@ pub async fn dispatch(state: Arc<ServerState>, request: RpcRequest) -> RpcRespon
         "db_update_position" => dispatch_db_update_position(args).await,
         "db_delete_position" => dispatch_db_delete_position(args).await,
 
-        // ============================================================================
         // PAPER TRADING - ORDERS
-        // ============================================================================
         "db_create_order" => dispatch_db_create_order(args).await,
         "db_get_order" => dispatch_db_get_order(args).await,
         "db_get_portfolio_orders" => dispatch_db_get_portfolio_orders(args).await,
@@ -171,18 +143,14 @@ pub async fn dispatch(state: Arc<ServerState>, request: RpcRequest) -> RpcRespon
         "db_update_order" => dispatch_db_update_order(args).await,
         "db_delete_order" => dispatch_db_delete_order(args).await,
 
-        // ============================================================================
         // PAPER TRADING - TRADES
-        // ============================================================================
         "db_create_trade" => dispatch_db_create_trade(args).await,
         "db_get_trade" => dispatch_db_get_trade(args).await,
         "db_get_portfolio_trades" => dispatch_db_get_portfolio_trades(args).await,
         "db_get_order_trades" => dispatch_db_get_order_trades(args).await,
         "db_delete_trade" => dispatch_db_delete_trade(args).await,
 
-        // ============================================================================
         // WATCHLIST COMMANDS
-        // ============================================================================
         "db_get_watchlists" => dispatch_db_get_watchlists().await,
         "db_create_watchlist" => dispatch_db_create_watchlist(args).await,
         "db_get_watchlist_stocks" => dispatch_db_get_watchlist_stocks(args).await,
@@ -190,9 +158,7 @@ pub async fn dispatch(state: Arc<ServerState>, request: RpcRequest) -> RpcRespon
         "db_remove_watchlist_stock" => dispatch_db_remove_watchlist_stock(args).await,
         "db_delete_watchlist" => dispatch_db_delete_watchlist(args).await,
 
-        // ============================================================================
         // SETUP & UTILITY COMMANDS
-        // ============================================================================
         "check_setup_status" => dispatch_check_setup_status().await,
         "cleanup_running_workflows" => dispatch_cleanup_running_workflows().await,
         "sha256_hash" => {
@@ -206,9 +172,7 @@ pub async fn dispatch(state: Arc<ServerState>, request: RpcRequest) -> RpcRespon
             RpcResponse::ok(format!("{:x}", result))
         }
 
-        // ============================================================================
         // WEBSOCKET COMMANDS
-        // ============================================================================
         "ws_set_config" => dispatch_ws_set_config(&state.ws_state, args).await,
         "ws_connect" => dispatch_ws_connect(&state.ws_state, args).await,
         "ws_disconnect" => dispatch_ws_disconnect(&state.ws_state, args).await,
@@ -218,27 +182,21 @@ pub async fn dispatch(state: Arc<ServerState>, request: RpcRequest) -> RpcRespon
         "ws_get_all_metrics" => dispatch_ws_get_all_metrics(&state.ws_state).await,
         "ws_reconnect" => dispatch_ws_reconnect(&state.ws_state, args).await,
 
-        // ============================================================================
         // MONITORING COMMANDS
-        // ============================================================================
         "monitor_add_condition" => dispatch_monitor_add_condition(&state.ws_state, args).await,
         "monitor_get_conditions" => dispatch_monitor_get_conditions().await,
         "monitor_delete_condition" => dispatch_monitor_delete_condition(&state.ws_state, args).await,
         "monitor_get_alerts" => dispatch_monitor_get_alerts(args).await,
         "monitor_load_conditions" => dispatch_monitor_load_conditions(&state.ws_state).await,
 
-        // ============================================================================
         // MCP COMMANDS
-        // ============================================================================
         "spawn_mcp_server" => dispatch_spawn_mcp_server(&state.mcp_state, args).await,
         "send_mcp_request" => dispatch_send_mcp_request(&state.mcp_state, args).await,
         "send_mcp_notification" => dispatch_send_mcp_notification(&state.mcp_state, args).await,
         "ping_mcp_server" => dispatch_ping_mcp_server(&state.mcp_state, args).await,
         "kill_mcp_server" => dispatch_kill_mcp_server(&state.mcp_state, args).await,
 
-        // ============================================================================
         // CATCH-ALL FOR UNIMPLEMENTED COMMANDS
-        // ============================================================================
         _ => {
             if crate::command_registry::is_known_command(request.cmd.as_str()) {
                 RpcResponse::err(format!(
@@ -257,9 +215,7 @@ pub async fn dispatch(state: Arc<ServerState>, request: RpcRequest) -> RpcRespon
     }
 }
 
-// ============================================================================
 // MCP DISPATCH FUNCTIONS
-// ============================================================================
 
 async fn dispatch_spawn_mcp_server(
     mcp_state: &Arc<crate::MCPState>,
@@ -369,9 +325,7 @@ async fn dispatch_kill_mcp_server(
     }
 }
 
-// ============================================================================
 // MARKET DATA DISPATCH FUNCTIONS
-// ============================================================================
 
 async fn dispatch_market_quote(args: Value) -> RpcResponse {
     let symbol = match args.get("symbol").and_then(|v| v.as_str()) {
@@ -463,9 +417,7 @@ async fn dispatch_financials(args: Value) -> RpcResponse {
     }
 }
 
-// ============================================================================
 // NEWS DISPATCH FUNCTIONS
-// ============================================================================
 
 async fn dispatch_fetch_all_rss_news() -> RpcResponse {
     match crate::commands::news::fetch_all_rss_news().await {
@@ -482,14 +434,20 @@ async fn dispatch_get_active_sources() -> RpcResponse {
     RpcResponse::ok(crate::commands::news::get_active_sources())
 }
 
-// ============================================================================
 // PYTHON SCRIPT DISPATCH HELPERS
-// ============================================================================
 
 fn execute_python_script_runtime(script_name: &str, args: Vec<String>) -> Result<String, String> {
     let script_path = crate::utils::python::get_script_path_for_runtime(None, script_name)?;
     
     // SECURITY: Basic input validation for command-line arguments
+    // Validate argument count to prevent abuse
+    if args.len() > 100 {
+        return Err(format!(
+            "Too many arguments: {} provided, maximum 100 allowed",
+            args.len()
+        ));
+    }
+    
     // Validate argument length to prevent potential buffer overflow or DoS
     for (i, arg) in args.iter().enumerate() {
         if arg.len() > 10_000 {
@@ -500,10 +458,10 @@ fn execute_python_script_runtime(script_name: &str, args: Vec<String>) -> Result
         }
         
         // Check for null bytes which could be used for command injection
-        if arg.contains('\0') {
+        if let Some(pos) = arg.find('\0') {
             return Err(format!(
-                "Argument {} contains null bytes which are not allowed",
-                i
+                "Argument {} contains null byte at position {} which is not allowed",
+                i, pos
             ));
         }
     }
@@ -547,6 +505,19 @@ fn get_optional_i32(args: &Value, key: &str) -> Option<i32> {
         .and_then(|v| i32::try_from(v).ok())
 }
 
+fn get_required_i32(args: &Value, key: &str) -> Result<i32, String> {
+    let value = args
+        .get(key)
+        .ok_or_else(|| format!("Missing '{}' parameter", key))?;
+
+    let int_value = value
+        .as_i64()
+        .ok_or_else(|| format!("Invalid '{}' parameter: expected integer", key))?;
+
+    i32::try_from(int_value)
+        .map_err(|_| format!("Invalid '{}' parameter: value {} out of range for i32", key, int_value))
+}
+
 fn get_optional_bool(args: &Value, key: &str) -> Option<bool> {
     args.get(key).and_then(|v| v.as_bool())
 }
@@ -580,9 +551,7 @@ fn dispatch_python_with_optional_params(
     }
 }
 
-// ============================================================================
 // PYTHON DATA SOURCE DISPATCH FUNCTIONS
-// ============================================================================
 
 async fn dispatch_execute_polygon_command(args: Value) -> RpcResponse {
     let command = match get_required_string(&args, "command") {
@@ -748,9 +717,7 @@ async fn dispatch_get_alphavantage_market_movers() -> RpcResponse {
     }
 }
 
-// ============================================================================
 // PMDARIMA DISPATCH FUNCTIONS
-// ============================================================================
 
 async fn dispatch_pmdarima_fit_auto_arima(args: Value) -> RpcResponse {
     let data: Vec<f64> = match args.get("data").cloned() {
@@ -783,9 +750,9 @@ async fn dispatch_pmdarima_forecast_auto_arima(args: Value) -> RpcResponse {
         },
         None => return RpcResponse::err("Missing 'data' parameter"),
     };
-    let n_periods = match get_optional_i32(&args, "n_periods") {
-        Some(value) => value,
-        None => return RpcResponse::err("Missing 'n_periods' parameter"),
+    let n_periods = match get_required_i32(&args, "n_periods") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
     };
 
     match crate::commands::pmdarima::pmdarima_forecast_auto_arima(
@@ -810,21 +777,21 @@ async fn dispatch_pmdarima_forecast_arima(args: Value) -> RpcResponse {
         },
         None => return RpcResponse::err("Missing 'data' parameter"),
     };
-    let p = match get_optional_i32(&args, "p") {
-        Some(value) => value,
-        None => return RpcResponse::err("Missing 'p' parameter"),
+    let p = match get_required_i32(&args, "p") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
     };
-    let d = match get_optional_i32(&args, "d") {
-        Some(value) => value,
-        None => return RpcResponse::err("Missing 'd' parameter"),
+    let d = match get_required_i32(&args, "d") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
     };
-    let q = match get_optional_i32(&args, "q") {
-        Some(value) => value,
-        None => return RpcResponse::err("Missing 'q' parameter"),
+    let q = match get_required_i32(&args, "q") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
     };
-    let n_periods = match get_optional_i32(&args, "n_periods") {
-        Some(value) => value,
-        None => return RpcResponse::err("Missing 'n_periods' parameter"),
+    let n_periods = match get_required_i32(&args, "n_periods") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
     };
 
     match crate::commands::pmdarima::pmdarima_forecast_arima(
@@ -919,9 +886,9 @@ async fn dispatch_pmdarima_decompose_timeseries(args: Value) -> RpcResponse {
         Ok(value) => value,
         Err(e) => return RpcResponse::err(e),
     };
-    let period = match get_optional_i32(&args, "period") {
-        Some(value) => value,
-        None => return RpcResponse::err("Missing 'period' parameter"),
+    let period = match get_required_i32(&args, "period") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
     };
 
     match crate::commands::pmdarima::pmdarima_decompose_timeseries(data, decomp_type, period).await {
@@ -938,21 +905,21 @@ async fn dispatch_pmdarima_cross_validate(args: Value) -> RpcResponse {
         },
         None => return RpcResponse::err("Missing 'data' parameter"),
     };
-    let p = match get_optional_i32(&args, "p") {
-        Some(value) => value,
-        None => return RpcResponse::err("Missing 'p' parameter"),
+    let p = match get_required_i32(&args, "p") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
     };
-    let d = match get_optional_i32(&args, "d") {
-        Some(value) => value,
-        None => return RpcResponse::err("Missing 'd' parameter"),
+    let d = match get_required_i32(&args, "d") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
     };
-    let q = match get_optional_i32(&args, "q") {
-        Some(value) => value,
-        None => return RpcResponse::err("Missing 'q' parameter"),
+    let q = match get_required_i32(&args, "q") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
     };
-    let cv_splits = match get_optional_i32(&args, "cv_splits") {
-        Some(value) => value,
-        None => return RpcResponse::err("Missing 'cv_splits' parameter"),
+    let cv_splits = match get_required_i32(&args, "cv_splits") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
     };
 
     match crate::commands::pmdarima::pmdarima_cross_validate(data, p, d, q, cv_splits).await {
@@ -961,9 +928,7 @@ async fn dispatch_pmdarima_cross_validate(args: Value) -> RpcResponse {
     }
 }
 
-// ============================================================================
 // GOVERNMENT & MACRO DISPATCH FUNCTIONS
-// ============================================================================
 
 async fn dispatch_execute_government_us_command(args: Value) -> RpcResponse {
     let command = match get_required_string(&args, "command") {
@@ -1319,9 +1284,7 @@ async fn dispatch_get_imf_trade_summary(args: Value) -> RpcResponse {
     )
 }
 
-// ============================================================================
 // DATABASE HEALTH & SETTINGS DISPATCH FUNCTIONS
-// ============================================================================
 
 async fn dispatch_db_health() -> RpcResponse {
     match crate::database::pool::get_pool() {
@@ -1374,9 +1337,7 @@ async fn dispatch_db_save_setting(args: Value) -> RpcResponse {
     }
 }
 
-// ============================================================================
 // CREDENTIALS DISPATCH FUNCTIONS
-// ============================================================================
 
 async fn dispatch_db_get_credentials() -> RpcResponse {
     match crate::database::operations::get_credentials() {
@@ -1421,9 +1382,7 @@ async fn dispatch_db_delete_credential(args: Value) -> RpcResponse {
     }
 }
 
-// ============================================================================
 // LLM CONFIG DISPATCH FUNCTIONS
-// ============================================================================
 
 async fn dispatch_db_get_llm_configs() -> RpcResponse {
     match crate::database::operations::get_llm_configs() {
@@ -1463,9 +1422,7 @@ async fn dispatch_db_save_llm_global_settings(args: Value) -> RpcResponse {
     }
 }
 
-// ============================================================================
 // CHAT SESSION DISPATCH FUNCTIONS
-// ============================================================================
 
 async fn dispatch_db_create_chat_session(args: Value) -> RpcResponse {
     let title = args.get("title").and_then(|v| v.as_str()).unwrap_or("New Chat").to_string();
@@ -1521,9 +1478,7 @@ async fn dispatch_db_delete_chat_session(args: Value) -> RpcResponse {
     }
 }
 
-// ============================================================================
 // DATA SOURCE DISPATCH FUNCTIONS
-// ============================================================================
 
 async fn dispatch_db_get_all_data_sources() -> RpcResponse {
     match crate::database::operations::get_all_data_sources() {
@@ -1556,9 +1511,7 @@ async fn dispatch_db_delete_data_source(args: Value) -> RpcResponse {
     }
 }
 
-// ============================================================================
 // PORTFOLIO DISPATCH FUNCTIONS
-// ============================================================================
 
 async fn dispatch_db_list_portfolios() -> RpcResponse {
     match crate::database::paper_trading::list_portfolios() {
@@ -1641,9 +1594,7 @@ async fn dispatch_db_delete_portfolio(args: Value) -> RpcResponse {
     }
 }
 
-// ============================================================================
 // WATCHLIST DISPATCH FUNCTIONS
-// ============================================================================
 
 async fn dispatch_db_get_watchlists() -> RpcResponse {
     match crate::database::queries::get_watchlists() {
@@ -1723,9 +1674,7 @@ async fn dispatch_db_delete_watchlist(args: Value) -> RpcResponse {
     }
 }
 
-// ============================================================================
 // SETUP DISPATCH FUNCTIONS
-// ============================================================================
 
 async fn dispatch_check_setup_status() -> RpcResponse {
     match crate::database::pool::get_pool() {
@@ -1742,9 +1691,7 @@ async fn dispatch_check_setup_status() -> RpcResponse {
     }
 }
 
-// ============================================================================
 // PAPER TRADING DISPATCH FUNCTIONS
-// ============================================================================
 
 async fn dispatch_db_update_portfolio_balance(args: Value) -> RpcResponse {
     let id = match args.get("id").and_then(|v| v.as_str()) {
@@ -2062,9 +2009,7 @@ async fn dispatch_cleanup_running_workflows() -> RpcResponse {
     RpcResponse::ok(serde_json::Value::Null)
 }
 
-// ============================================================================
 // MONITORING DISPATCH FUNCTIONS
-// ============================================================================
 
 async fn dispatch_monitor_add_condition(
     state: &crate::WebSocketState,
@@ -2283,9 +2228,7 @@ async fn dispatch_monitor_load_conditions(state: &crate::WebSocketState) -> RpcR
     }
 }
 
-// ============================================================================
 // WEBSOCKET DISPATCH FUNCTIONS
-// ============================================================================
 
 async fn dispatch_ws_set_config(state: &crate::WebSocketState, args: Value) -> RpcResponse {
     let config_value = args.get("config").cloned().unwrap_or(args);
@@ -2536,9 +2479,7 @@ mod tests {
         assert!(response.error.is_some());
     }
 
-    // ============================================================================
     // MCP DISPATCH FUNCTION TESTS
-    // ============================================================================
 
     fn create_test_mcp_state() -> Arc<crate::MCPState> {
         Arc::new(crate::MCPState {
@@ -2686,9 +2627,7 @@ mod tests {
         assert_eq!(response.error.unwrap(), "Missing 'serverId' parameter");
     }
 
-    // ============================================================================
     // MONITORING DISPATCH FUNCTION TESTS
-    // ============================================================================
 
     #[tokio::test]
     async fn test_dispatch_monitor_add_condition_missing_provider() {
@@ -2805,5 +2744,91 @@ mod tests {
         // Should always return ok as it's a no-op acknowledgment
         assert!(response.error.is_none());
         assert!(response.result.is_some());
+    // SECURITY VALIDATION TESTS
+
+    #[test]
+    fn test_execute_python_script_runtime_oversized_argument() {
+        let large_arg = "a".repeat(10_001);
+        let result = execute_python_script_runtime("test.py", vec![large_arg]);
+        
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("exceeds maximum length"));
+    }
+
+    #[test]
+    fn test_execute_python_script_runtime_null_byte_in_argument() {
+        let arg_with_null = format!("test{}data", '\0');
+        let result = execute_python_script_runtime("test.py", vec![arg_with_null]);
+        
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error.contains("null byte"));
+        assert!(error.contains("at position 4"));
+    }
+
+    #[test]
+    fn test_execute_python_script_runtime_too_many_arguments() {
+        let args: Vec<String> = (0..101).map(|i| format!("arg{}", i)).collect();
+        let result = execute_python_script_runtime("test.py", args);
+        
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Too many arguments"));
+        assert!(result.unwrap_err().contains("101 provided"));
+    }
+
+    #[test]
+    fn test_execute_python_command_runtime_null_byte_in_command() {
+        let command_with_null = format!("test{}cmd", '\0');
+        let result = execute_python_command_runtime("test.py", &command_with_null, vec![]);
+        
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("null bytes which are not allowed"));
+    }
+
+    #[test]
+    fn test_execute_python_command_runtime_oversized_command() {
+        let large_command = "a".repeat(101);
+        let result = execute_python_command_runtime("test.py", &large_command, vec![]);
+        
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("exceeds maximum length (100 characters)"));
+    }
+
+    #[test]
+    fn test_get_required_i32_missing_parameter() {
+        let args = serde_json::json!({});
+        let result = get_required_i32(&args, "test_param");
+        
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "Missing 'test_param' parameter");
+    }
+
+    #[test]
+    fn test_get_required_i32_invalid_type() {
+        let args = serde_json::json!({"test_param": "not_a_number"});
+        let result = get_required_i32(&args, "test_param");
+        
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("expected integer"));
+    }
+
+    #[test]
+    fn test_get_required_i32_out_of_range() {
+        let args = serde_json::json!({"test_param": 3_000_000_000_i64}); // Larger than i32::MAX
+        let result = get_required_i32(&args, "test_param");
+        
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error.contains("out of range"));
+        assert!(error.contains("3000000000"));
+    }
+
+    #[test]
+    fn test_get_required_i32_valid() {
+        let args = serde_json::json!({"test_param": 42});
+        let result = get_required_i32(&args, "test_param");
+        
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 42);
     }
 }
