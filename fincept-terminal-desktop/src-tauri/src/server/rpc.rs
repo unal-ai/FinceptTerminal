@@ -2,14 +2,15 @@
 // This module maps command names to their handlers, similar to Tauri's invoke_handler.
 // It allows reusing all existing command logic without modification.
 
-use super::types::{RpcRequest, RpcResponse};
+use super::types::{RpcRequest, RpcResponse, ServerState};
 use serde_json::Value;
+use std::sync::Arc;
 
 /// Dispatch an RPC request to the appropriate command handler
 /// 
 /// This function acts as the central router, mapping command names to their
 /// implementations. It mirrors the behavior of Tauri's invoke_handler macro.
-pub async fn dispatch(request: RpcRequest) -> RpcResponse {
+pub async fn dispatch(state: Arc<ServerState>, request: RpcRequest) -> RpcResponse {
     let args = request.args;
     
     match request.cmd.as_str() {
