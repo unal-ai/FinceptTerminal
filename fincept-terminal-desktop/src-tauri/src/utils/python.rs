@@ -279,12 +279,40 @@ pub fn get_script_path_for_runtime(
     app: Option<&tauri::AppHandle>,
     script_name: &str,
 ) -> Result<PathBuf, String> {
+    // SECURITY: Validate script_name to prevent path traversal attacks
+    if script_name.contains("..") || script_name.contains("/") || script_name.contains("\\") {
+        return Err(format!(
+            "Invalid script name '{}': path traversal not allowed",
+            script_name
+        ));
+    }
+
     // Strategy: Try multiple paths in order until we find the script
     let mut candidate_paths = Vec::new();
 
     // 0. Optional override for server/runtime deployments
+    // SECURITY WARNING: FINCEPT_SCRIPTS_PATH should only be set in trusted environments.
+    // An attacker who can control this environment variable could execute arbitrary Python code.
+    // Only use this in development/testing, not in production deployments.
     if let Ok(custom_dir) = std::env::var("FINCEPT_SCRIPTS_PATH") {
-        candidate_paths.push(PathBuf::from(custom_dir).join(script_name));
+        let custom_path = PathBuf::from(&custom_dir);
+        
+        // Validate that the custom path is absolute and exists
+        if !custom_path.is_absolute() {
+            return Err(format!(
+                "FINCEPT_SCRIPTS_PATH must be an absolute path, got: {}",
+                custom_dir
+            ));
+        }
+        
+        if !custom_path.exists() {
+            return Err(format!(
+                "FINCEPT_SCRIPTS_PATH directory does not exist: {}",
+                custom_dir
+            ));
+        }
+        
+        candidate_paths.push(custom_path.join(script_name));
     }
 
     // 1. Try Tauri's resource_dir (works in production and should work in dev)
