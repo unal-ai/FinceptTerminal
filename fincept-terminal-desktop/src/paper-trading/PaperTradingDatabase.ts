@@ -77,7 +77,7 @@ export class PaperTradingDatabase {
 
   async getPortfolio(portfolioId: string): Promise<PaperTradingPortfolio | null> {
     try {
-      const result = await invoke<any>('db_get_portfolio', { id: portfolioId });
+      const result = await invoke<any>('db_get_portfolio', { portfolioId });
       return this.mapDBPortfolio(result);
     } catch (error) {
       console.error('[PaperTradingDatabase] getPortfolio error:', error);
@@ -93,7 +93,7 @@ export class PaperTradingDatabase {
   }
 
   async deletePortfolio(portfolioId: string): Promise<void> {
-    await invoke('db_delete_portfolio', { id: portfolioId });
+    await invoke('db_delete_portfolio', { portfolioId });
   }
 
   async listPortfolios(): Promise<PaperTradingPortfolio[]> {
