@@ -734,3 +734,125 @@ async fn dispatch_ws_reconnect(state: &crate::WebSocketState, args: Value) -> Rp
         Err(e) => RpcResponse::err(e.to_string()),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    fn create_test_ws_state() -> crate::WebSocketState {
+        let router = Arc::new(tokio::sync::RwLock::new(crate::websocket::MessageRouter::new()));
+        let manager = Arc::new(tokio::sync::RwLock::new(crate::websocket::WebSocketManager::new(router.clone())));
+        let services = Arc::new(tokio::sync::RwLock::new(crate::WebSocketServices {
+            paper_trading: crate::websocket::services::PaperTradingService::new(),
+            arbitrage: crate::websocket::services::ArbitrageService::new(),
+            portfolio: crate::websocket::services::PortfolioService::new(),
+            monitoring: crate::websocket::services::MonitoringService::default(),
+        }));
+        
+        crate::WebSocketState {
+            manager,
+            router,
+            services,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_ws_connect_missing_provider() {
+        let ws_state = create_test_ws_state();
+        let args = serde_json::json!({});
+        
+        let response = dispatch_ws_connect(&ws_state, args).await;
+        
+        assert!(response.error.is_some());
+        assert_eq!(response.error.unwrap(), "Missing 'provider' parameter");
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_ws_disconnect_missing_provider() {
+        let ws_state = create_test_ws_state();
+        let args = serde_json::json!({});
+        
+        let response = dispatch_ws_disconnect(&ws_state, args).await;
+        
+        assert!(response.error.is_some());
+        assert_eq!(response.error.unwrap(), "Missing 'provider' parameter");
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_ws_subscribe_missing_parameters() {
+        let ws_state = create_test_ws_state();
+        
+        // Missing provider
+        let args = serde_json::json!({"symbol": "BTC/USD", "channel": "ticker"});
+        let response = dispatch_ws_subscribe(&ws_state, args).await;
+        assert!(response.error.is_some());
+        assert_eq!(response.error.unwrap(), "Missing 'provider' parameter");
+        
+        // Missing symbol
+        let args = serde_json::json!({"provider": "binance", "channel": "ticker"});
+        let response = dispatch_ws_subscribe(&ws_state, args).await;
+        assert!(response.error.is_some());
+        assert_eq!(response.error.unwrap(), "Missing 'symbol' parameter");
+        
+        // Missing channel
+        let args = serde_json::json!({"provider": "binance", "symbol": "BTC/USD"});
+        let response = dispatch_ws_subscribe(&ws_state, args).await;
+        assert!(response.error.is_some());
+        assert_eq!(response.error.unwrap(), "Missing 'channel' parameter");
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_ws_unsubscribe_missing_parameters() {
+        let ws_state = create_test_ws_state();
+        
+        // Missing provider
+        let args = serde_json::json!({"symbol": "BTC/USD", "channel": "ticker"});
+        let response = dispatch_ws_unsubscribe(&ws_state, args).await;
+        assert!(response.error.is_some());
+        assert_eq!(response.error.unwrap(), "Missing 'provider' parameter");
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_ws_get_metrics_missing_provider() {
+        let ws_state = create_test_ws_state();
+        let args = serde_json::json!({});
+        
+        let response = dispatch_ws_get_metrics(&ws_state, args).await;
+        
+        assert!(response.error.is_some());
+        assert_eq!(response.error.unwrap(), "Missing 'provider' parameter");
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_ws_get_all_metrics() {
+        let ws_state = create_test_ws_state();
+        
+        let response = dispatch_ws_get_all_metrics(&ws_state).await;
+        
+        assert!(response.error.is_none());
+        assert!(response.result.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_ws_reconnect_missing_provider() {
+        let ws_state = create_test_ws_state();
+        let args = serde_json::json!({});
+        
+        let response = dispatch_ws_reconnect(&ws_state, args).await;
+        
+        assert!(response.error.is_some());
+        assert_eq!(response.error.unwrap(), "Missing 'provider' parameter");
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_ws_set_config_invalid_config() {
+        let ws_state = create_test_ws_state();
+        let args = serde_json::json!({"invalid": "data"});
+        
+        let response = dispatch_ws_set_config(&ws_state, args).await;
+        
+        // Should return an error for invalid config format
+        assert!(response.error.is_some());
+    }
+}
