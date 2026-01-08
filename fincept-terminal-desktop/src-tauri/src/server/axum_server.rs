@@ -28,7 +28,8 @@ use axum::{
     Json, Router,
 };
 use futures::{SinkExt, StreamExt};
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 use tower_http::trace::TraceLayer;
@@ -47,6 +48,9 @@ pub async fn run_server(config: ServerConfig) -> Result<(), Box<dyn std::error::
         config: config.clone(),
         request_count: std::sync::atomic::AtomicU64::new(0),
         ws_state: init_websocket_state().await?,
+        mcp_state: Arc::new(crate::MCPState {
+            processes: Mutex::new(HashMap::new()),
+        }),
     });
 
     // Request ID layer for tracing

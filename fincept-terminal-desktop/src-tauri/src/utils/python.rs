@@ -115,34 +115,23 @@ pub fn get_python_path_for_library(app: &tauri::AppHandle, library_name: Option<
 
 /// Get the Bun executable path from app installation directory
 pub fn get_bundled_bun_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    // Get install directory - MUST match setup.rs get_install_dir()
-    let install_dir = if cfg!(debug_assertions) {
-        // Dev mode: use LOCALAPPDATA/fincept-dev
-        let base_dir = if cfg!(target_os = "windows") {
-            std::env::var("LOCALAPPDATA")
-                .map(PathBuf::from)
-                .unwrap_or_else(|_| PathBuf::from("C:\\Users\\Default\\AppData\\Local"))
-        } else if cfg!(target_os = "macos") {
-            std::env::var("HOME")
-                .map(|h| PathBuf::from(h).join("Library/Application Support"))
-                .unwrap_or_else(|_| PathBuf::from("/tmp"))
-        } else {
-            std::env::var("HOME")
-                .map(|h| PathBuf::from(h).join(".local/share"))
-                .unwrap_or_else(|_| PathBuf::from("/tmp"))
-        };
-        base_dir.join("fincept-dev")
-    } else {
-        // Production: use app data directory
-        app.path().app_data_dir()
-            .map_err(|e| format!("Failed to get app data dir: {}", e))?
-    };
+    get_bundled_bun_path_for_runtime(Some(app))
+}
+
+pub fn get_bundled_bun_path_for_runtime(app: Option<&tauri::AppHandle>) -> Result<PathBuf, String> {
+    let install_dir = get_install_dir_for_runtime(app)?;
 
     // Platform-specific Bun executable location
-    let bun_exe = if cfg!(target_os = "windows") {
-        install_dir.join("bun").join("bun.exe")
+    let bun_candidates = if cfg!(target_os = "windows") {
+        vec![
+            install_dir.join("bun").join("bun.exe"),
+            install_dir.join("bun").join("bin").join("bun.exe"),
+        ]
     } else {
-        install_dir.join("bun").join("bun")
+        vec![
+            install_dir.join("bun").join("bin").join("bun"),
+            install_dir.join("bun").join("bun"),
+        ]
     };
 
     // DEVELOPMENT MODE: Prefer system Bun
@@ -165,15 +154,74 @@ pub fn get_bundled_bun_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     }
 
     // PRODUCTION MODE or dev fallback: Check bundled Bun
-    if bun_exe.exists() {
-        return Ok(bun_exe);
+    for bun_exe in &bun_candidates {
+        if bun_exe.exists() {
+            return Ok(bun_exe.clone());
+        }
     }
+
+    let candidate_list = bun_candidates
+        .iter()
+        .map(|path| path.display().to_string())
+        .collect::<Vec<_>>()
+        .join(", ");
 
     // If we get here, Bun is not available
     Err(format!(
-        "Bun not found at: {}\n\nPlease run the setup process to install Bun.",
-        bun_exe.display()
+        "Bun not found at any of: {}\n\nPlease run the setup process to install Bun.",
+        candidate_list
     ))
+}
+
+fn get_install_dir_for_runtime(app: Option<&tauri::AppHandle>) -> Result<PathBuf, String> {
+    // Get install directory - MUST match setup.rs get_install_dir()
+    if cfg!(debug_assertions) {
+        // Dev mode: use LOCALAPPDATA/fincept-dev
+        let base_dir = if cfg!(target_os = "windows") {
+            std::env::var("LOCALAPPDATA")
+                .map(PathBuf::from)
+                .unwrap_or_else(|_| PathBuf::from("C:\\Users\\Default\\AppData\\Local"))
+        } else if cfg!(target_os = "macos") {
+            std::env::var("HOME")
+                .map(|h| PathBuf::from(h).join("Library/Application Support"))
+                .unwrap_or_else(|_| PathBuf::from("/tmp"))
+        } else {
+            std::env::var("HOME")
+                .map(|h| PathBuf::from(h).join(".local/share"))
+                .unwrap_or_else(|_| PathBuf::from("/tmp"))
+        };
+        return Ok(base_dir.join("fincept-dev"));
+    }
+
+    if let Some(app_handle) = app {
+        return app_handle
+            .path()
+            .app_data_dir()
+            .map_err(|e| format!("Failed to get app data dir: {}", e));
+    }
+
+    if let Ok(custom_dir) = std::env::var("FINCEPT_APP_DATA_DIR") {
+        return Ok(PathBuf::from(custom_dir));
+    }
+
+    let base_dir = if cfg!(target_os = "windows") {
+        std::env::var("APPDATA")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from("C:\\Users\\Default\\AppData\\Roaming"))
+    } else if cfg!(target_os = "macos") {
+        std::env::var("HOME")
+            .map(|h| PathBuf::from(h).join("Library/Application Support"))
+            .unwrap_or_else(|_| PathBuf::from("/tmp"))
+    } else {
+        std::env::var("XDG_DATA_HOME")
+            .map(PathBuf::from)
+            .or_else(|_| {
+                std::env::var("HOME").map(|h| PathBuf::from(h).join(".local/share"))
+            })
+            .unwrap_or_else(|_| PathBuf::from("/tmp"))
+    };
+
+    Ok(base_dir.join("com.fincept.terminal"))
 }
 
 /// Get a Python script path at runtime

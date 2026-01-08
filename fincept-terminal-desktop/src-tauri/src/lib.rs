@@ -83,10 +83,28 @@ fn spawn_mcp_server(
     args: Vec<String>,
     env: HashMap<String, String>,
 ) -> Result<SpawnResult, String> {
+    spawn_mcp_server_internal(
+        Some(&app),
+        &state,
+        server_id,
+        command,
+        args,
+        env,
+    )
+}
+
+pub(crate) fn spawn_mcp_server_internal(
+    app: Option<&tauri::AppHandle>,
+    state: &MCPState,
+    server_id: String,
+    command: String,
+    args: Vec<String>,
+    env: HashMap<String, String>,
+) -> Result<SpawnResult, String> {
     // Determine if we should use bundled Bun (for npx/bunx commands)
     let (fixed_command, fixed_args) = if command == "npx" || command == "bunx" {
         // Try to get bundled Bun path
-        match utils::python::get_bundled_bun_path(&app) {
+        match utils::python::get_bundled_bun_path_for_runtime(app) {
             Ok(bun_path) => {
                 // Use 'bun x' which is equivalent to 'bunx' or 'npx'
                 let mut new_args = vec!["x".to_string()];
@@ -217,6 +235,14 @@ fn send_mcp_request(
     server_id: String,
     request: String,
 ) -> Result<String, String> {
+    send_mcp_request_internal(&state, server_id, request)
+}
+
+pub(crate) fn send_mcp_request_internal(
+    state: &MCPState,
+    server_id: String,
+    request: String,
+) -> Result<String, String> {
     println!("[Tauri] Sending request to server {}: {}", server_id, request);
 
     let mut processes = state.processes.lock().unwrap();
@@ -255,6 +281,14 @@ fn send_mcp_notification(
     server_id: String,
     notification: String,
 ) -> Result<(), String> {
+    send_mcp_notification_internal(&state, server_id, notification)
+}
+
+pub(crate) fn send_mcp_notification_internal(
+    state: &MCPState,
+    server_id: String,
+    notification: String,
+) -> Result<(), String> {
     let mut processes = state.processes.lock().unwrap();
 
     if let Some(mcp_process) = processes.get_mut(&server_id) {
@@ -275,6 +309,13 @@ fn ping_mcp_server(
     state: tauri::State<MCPState>,
     server_id: String,
 ) -> Result<bool, String> {
+    ping_mcp_server_internal(&state, server_id)
+}
+
+pub(crate) fn ping_mcp_server_internal(
+    state: &MCPState,
+    server_id: String,
+) -> Result<bool, String> {
     let mut processes = state.processes.lock().unwrap();
 
     if let Some(mcp_process) = processes.get_mut(&server_id) {
@@ -293,6 +334,13 @@ fn ping_mcp_server(
 #[tauri::command]
 fn kill_mcp_server(
     state: tauri::State<MCPState>,
+    server_id: String,
+) -> Result<(), String> {
+    kill_mcp_server_internal(&state, server_id)
+}
+
+pub(crate) fn kill_mcp_server_internal(
+    state: &MCPState,
     server_id: String,
 ) -> Result<(), String> {
     let mut processes = state.processes.lock().unwrap();
