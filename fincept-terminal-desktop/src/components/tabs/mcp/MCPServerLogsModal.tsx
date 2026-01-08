@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, Download, Trash2 } from 'lucide-react';
-import { invoke } from '@/services/invoke';
+// Note: invoke import removed as it's currently only used in a comment for future implementation
 
 interface MCPServerLogsModalProps {
   serverId: string;
