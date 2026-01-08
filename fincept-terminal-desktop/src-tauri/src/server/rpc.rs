@@ -559,6 +559,27 @@ fn get_string_list(args: &Value, key: &str) -> Result<Vec<String>, String> {
     }
 }
 
+/// Helper function to reduce code duplication in Python command dispatch functions.
+/// Extracts optional string parameters from args and calls the Python command.
+fn dispatch_python_with_optional_params(
+    script_name: &str,
+    command: &str,
+    args: &Value,
+    param_names: &[&str],
+) -> RpcResponse {
+    let mut command_args = Vec::new();
+    for param_name in param_names {
+        if let Some(value) = get_optional_string(args, param_name) {
+            command_args.push(value);
+        }
+    }
+
+    match execute_python_command_runtime(script_name, command, command_args) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
 // ============================================================================
 // PYTHON DATA SOURCE DISPATCH FUNCTIONS
 // ============================================================================
@@ -1158,24 +1179,12 @@ async fn dispatch_execute_oecd_command(args: Value) -> RpcResponse {
 }
 
 async fn dispatch_get_oecd_gdp_real(args: Value) -> RpcResponse {
-    let mut command_args = Vec::new();
-    if let Some(value) = get_optional_string(&args, "countries") {
-        command_args.push(value);
-    }
-    if let Some(value) = get_optional_string(&args, "frequency") {
-        command_args.push(value);
-    }
-    if let Some(value) = get_optional_string(&args, "start_date") {
-        command_args.push(value);
-    }
-    if let Some(value) = get_optional_string(&args, "end_date") {
-        command_args.push(value);
-    }
-
-    match execute_python_command_runtime("oecd_data.py", "gdp_real", command_args) {
-        Ok(result) => RpcResponse::ok(result),
-        Err(e) => RpcResponse::err(e),
-    }
+    dispatch_python_with_optional_params(
+        "oecd_data.py",
+        "gdp_real",
+        &args,
+        &["countries", "frequency", "start_date", "end_date"],
+    )
 }
 
 async fn dispatch_get_oecd_consumer_price_index(args: Value) -> RpcResponse {
@@ -1209,60 +1218,30 @@ async fn dispatch_get_oecd_consumer_price_index(args: Value) -> RpcResponse {
 }
 
 async fn dispatch_get_oecd_gdp_forecast(args: Value) -> RpcResponse {
-    let mut command_args = Vec::new();
-    if let Some(value) = get_optional_string(&args, "countries") {
-        command_args.push(value);
-    }
-    if let Some(value) = get_optional_string(&args, "start_date") {
-        command_args.push(value);
-    }
-    if let Some(value) = get_optional_string(&args, "end_date") {
-        command_args.push(value);
-    }
-
-    match execute_python_command_runtime("oecd_data.py", "gdp_forecast", command_args) {
-        Ok(result) => RpcResponse::ok(result),
-        Err(e) => RpcResponse::err(e),
-    }
+    dispatch_python_with_optional_params(
+        "oecd_data.py",
+        "gdp_forecast",
+        &args,
+        &["countries", "start_date", "end_date"],
+    )
 }
 
 async fn dispatch_get_oecd_unemployment(args: Value) -> RpcResponse {
-    let mut command_args = Vec::new();
-    if let Some(value) = get_optional_string(&args, "countries") {
-        command_args.push(value);
-    }
-    if let Some(value) = get_optional_string(&args, "frequency") {
-        command_args.push(value);
-    }
-    if let Some(value) = get_optional_string(&args, "start_date") {
-        command_args.push(value);
-    }
-    if let Some(value) = get_optional_string(&args, "end_date") {
-        command_args.push(value);
-    }
-
-    match execute_python_command_runtime("oecd_data.py", "unemployment", command_args) {
-        Ok(result) => RpcResponse::ok(result),
-        Err(e) => RpcResponse::err(e),
-    }
+    dispatch_python_with_optional_params(
+        "oecd_data.py",
+        "unemployment",
+        &args,
+        &["countries", "frequency", "start_date", "end_date"],
+    )
 }
 
 async fn dispatch_get_oecd_economic_summary(args: Value) -> RpcResponse {
-    let mut command_args = Vec::new();
-    if let Some(value) = get_optional_string(&args, "country") {
-        command_args.push(value);
-    }
-    if let Some(value) = get_optional_string(&args, "start_date") {
-        command_args.push(value);
-    }
-    if let Some(value) = get_optional_string(&args, "end_date") {
-        command_args.push(value);
-    }
-
-    match execute_python_command_runtime("oecd_data.py", "economic_summary", command_args) {
-        Ok(result) => RpcResponse::ok(result),
-        Err(e) => RpcResponse::err(e),
-    }
+    dispatch_python_with_optional_params(
+        "oecd_data.py",
+        "economic_summary",
+        &args,
+        &["country", "start_date", "end_date"],
+    )
 }
 
 async fn dispatch_get_oecd_country_list() -> RpcResponse {
@@ -1289,45 +1268,21 @@ async fn dispatch_execute_imf_command(args: Value) -> RpcResponse {
 }
 
 async fn dispatch_get_imf_economic_indicators(args: Value) -> RpcResponse {
-    let mut command_args = Vec::new();
-    if let Some(value) = get_optional_string(&args, "country") {
-        command_args.push(value);
-    }
-    if let Some(value) = get_optional_string(&args, "indicator") {
-        command_args.push(value);
-    }
-    if let Some(value) = get_optional_string(&args, "start_date") {
-        command_args.push(value);
-    }
-    if let Some(value) = get_optional_string(&args, "end_date") {
-        command_args.push(value);
-    }
-
-    match execute_python_command_runtime("imf_data.py", "economic_indicators", command_args) {
-        Ok(result) => RpcResponse::ok(result),
-        Err(e) => RpcResponse::err(e),
-    }
+    dispatch_python_with_optional_params(
+        "imf_data.py",
+        "economic_indicators",
+        &args,
+        &["country", "indicator", "start_date", "end_date"],
+    )
 }
 
 async fn dispatch_get_imf_direction_of_trade(args: Value) -> RpcResponse {
-    let mut command_args = Vec::new();
-    if let Some(value) = get_optional_string(&args, "country") {
-        command_args.push(value);
-    }
-    if let Some(value) = get_optional_string(&args, "partner") {
-        command_args.push(value);
-    }
-    if let Some(value) = get_optional_string(&args, "start_date") {
-        command_args.push(value);
-    }
-    if let Some(value) = get_optional_string(&args, "end_date") {
-        command_args.push(value);
-    }
-
-    match execute_python_command_runtime("imf_data.py", "direction_of_trade", command_args) {
-        Ok(result) => RpcResponse::ok(result),
-        Err(e) => RpcResponse::err(e),
-    }
+    dispatch_python_with_optional_params(
+        "imf_data.py",
+        "direction_of_trade",
+        &args,
+        &["country", "partner", "start_date", "end_date"],
+    )
 }
 
 async fn dispatch_get_imf_available_indicators() -> RpcResponse {
@@ -1338,57 +1293,30 @@ async fn dispatch_get_imf_available_indicators() -> RpcResponse {
 }
 
 async fn dispatch_get_imf_comprehensive_economic_data(args: Value) -> RpcResponse {
-    let mut command_args = Vec::new();
-    if let Some(value) = get_optional_string(&args, "country") {
-        command_args.push(value);
-    }
-    if let Some(value) = get_optional_string(&args, "start_date") {
-        command_args.push(value);
-    }
-    if let Some(value) = get_optional_string(&args, "end_date") {
-        command_args.push(value);
-    }
-
-    match execute_python_command_runtime("imf_data.py", "comprehensive", command_args) {
-        Ok(result) => RpcResponse::ok(result),
-        Err(e) => RpcResponse::err(e),
-    }
+    dispatch_python_with_optional_params(
+        "imf_data.py",
+        "comprehensive",
+        &args,
+        &["country", "start_date", "end_date"],
+    )
 }
 
 async fn dispatch_get_imf_reserves_data(args: Value) -> RpcResponse {
-    let mut command_args = Vec::new();
-    if let Some(value) = get_optional_string(&args, "country") {
-        command_args.push(value);
-    }
-    if let Some(value) = get_optional_string(&args, "start_date") {
-        command_args.push(value);
-    }
-    if let Some(value) = get_optional_string(&args, "end_date") {
-        command_args.push(value);
-    }
-
-    match execute_python_command_runtime("imf_data.py", "reserves", command_args) {
-        Ok(result) => RpcResponse::ok(result),
-        Err(e) => RpcResponse::err(e),
-    }
+    dispatch_python_with_optional_params(
+        "imf_data.py",
+        "reserves",
+        &args,
+        &["country", "start_date", "end_date"],
+    )
 }
 
 async fn dispatch_get_imf_trade_summary(args: Value) -> RpcResponse {
-    let mut command_args = Vec::new();
-    if let Some(value) = get_optional_string(&args, "country") {
-        command_args.push(value);
-    }
-    if let Some(value) = get_optional_string(&args, "start_date") {
-        command_args.push(value);
-    }
-    if let Some(value) = get_optional_string(&args, "end_date") {
-        command_args.push(value);
-    }
-
-    match execute_python_command_runtime("imf_data.py", "trade_summary", command_args) {
-        Ok(result) => RpcResponse::ok(result),
-        Err(e) => RpcResponse::err(e),
-    }
+    dispatch_python_with_optional_params(
+        "imf_data.py",
+        "trade_summary",
+        &args,
+        &["country", "start_date", "end_date"],
+    )
 }
 
 // ============================================================================
