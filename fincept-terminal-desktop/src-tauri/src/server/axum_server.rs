@@ -327,8 +327,10 @@ async fn handle_ws(socket: WebSocket, state: Arc<ServerState>) {
             Ok(Message::Close(_)) | Err(_) => break,
             Ok(Message::Ping(data)) => {
                 // Respond to ping with pong to keep connection alive
-                if tx.send(Message::Pong(data)).await.is_err() {
-                    break;
+                // Use try_send to avoid blocking like other message handlers
+                match tx.try_send(Message::Pong(data)) {
+                    Ok(_) => {}
+                    Err(_) => break, // Channel full or closed, disconnect
                 }
             }
             Ok(Message::Pong(_)) => {

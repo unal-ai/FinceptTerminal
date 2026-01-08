@@ -747,6 +747,8 @@ mod tests {
             paper_trading: crate::websocket::services::PaperTradingService::new(),
             arbitrage: crate::websocket::services::ArbitrageService::new(),
             portfolio: crate::websocket::services::PortfolioService::new(),
+            // Use default() for tests since we're testing RPC parameter validation,
+            // not monitoring service functionality. Production code initializes with DB path.
             monitoring: crate::websocket::services::MonitoringService::default(),
         }));
         
