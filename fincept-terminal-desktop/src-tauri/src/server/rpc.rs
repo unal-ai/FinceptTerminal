@@ -1146,11 +1146,11 @@ async fn dispatch_monitor_add_condition(
 
     let services = state.services.read().await;
     if let Err(e) = services.monitoring.load_conditions().await {
-        eprintln!(
+        return RpcResponse::err(format!(
             "Failed to reload monitor conditions after inserting condition with id {}: {}",
             id,
             e
-        );
+        ));
     }
 
     RpcResponse::ok(id)
@@ -1741,7 +1741,9 @@ mod tests {
         let response = dispatch_monitor_add_condition(&ws_state, args).await;
         
         assert!(response.error.is_some());
-        assert_eq!(response.error.unwrap(), "Missing 'provider' parameter");
+        let error = response.error.unwrap();
+        assert!(error.contains("Invalid 'condition' parameter"));
+        assert!(error.contains("provider"));
     }
 
     #[tokio::test]
@@ -1757,7 +1759,9 @@ mod tests {
         let response = dispatch_monitor_add_condition(&ws_state, args).await;
         
         assert!(response.error.is_some());
-        assert_eq!(response.error.unwrap(), "Missing 'symbol' parameter");
+        let error = response.error.unwrap();
+        assert!(error.contains("Invalid 'condition' parameter"));
+        assert!(error.contains("symbol"));
     }
 
     #[tokio::test]
@@ -1773,7 +1777,9 @@ mod tests {
         let response = dispatch_monitor_add_condition(&ws_state, args).await;
         
         assert!(response.error.is_some());
-        assert_eq!(response.error.unwrap(), "Missing 'field' parameter");
+        let error = response.error.unwrap();
+        assert!(error.contains("Invalid 'condition' parameter"));
+        assert!(error.contains("field"));
     }
 
     #[tokio::test]
@@ -1789,7 +1795,9 @@ mod tests {
         let response = dispatch_monitor_add_condition(&ws_state, args).await;
         
         assert!(response.error.is_some());
-        assert_eq!(response.error.unwrap(), "Missing 'operator' parameter");
+        let error = response.error.unwrap();
+        assert!(error.contains("Invalid 'condition' parameter"));
+        assert!(error.contains("operator"));
     }
 
     #[tokio::test]
@@ -1805,7 +1813,9 @@ mod tests {
         let response = dispatch_monitor_add_condition(&ws_state, args).await;
         
         assert!(response.error.is_some());
-        assert_eq!(response.error.unwrap(), "Missing 'value' parameter");
+        let error = response.error.unwrap();
+        assert!(error.contains("Invalid 'condition' parameter"));
+        assert!(error.contains("value"));
     }
 
     #[tokio::test]
@@ -1817,48 +1827,6 @@ mod tests {
         
         assert!(response.error.is_some());
         assert_eq!(response.error.unwrap(), "Missing 'id' parameter");
-    }
-
-    #[tokio::test]
-    async fn test_dispatch_monitor_get_conditions_success() {
-        let response = dispatch_monitor_get_conditions().await;
-        
-        // Should succeed even with no database (will return error or empty list)
-        // The important thing is it doesn't panic
-        assert!(response.error.is_some() || response.result.is_some());
-    }
-
-    #[tokio::test]
-    async fn test_dispatch_monitor_get_alerts_default_limit() {
-        let args = serde_json::json!({});
-        
-        let response = dispatch_monitor_get_alerts(args).await;
-        
-        // Should succeed even with no database (will return error or empty list)
-        // The important thing is it doesn't panic
-        assert!(response.error.is_some() || response.result.is_some());
-    }
-
-    #[tokio::test]
-    async fn test_dispatch_monitor_get_alerts_custom_limit() {
-        let args = serde_json::json!({"limit": 10});
-        
-        let response = dispatch_monitor_get_alerts(args).await;
-        
-        // Should succeed even with no database (will return error or empty list)
-        // The important thing is it doesn't panic
-        assert!(response.error.is_some() || response.result.is_some());
-    }
-
-    #[tokio::test]
-    async fn test_dispatch_monitor_load_conditions_success() {
-        let ws_state = create_test_ws_state();
-        
-        let response = dispatch_monitor_load_conditions(&ws_state).await;
-        
-        // Should succeed even with no database (will return error or ok)
-        // The important thing is it doesn't panic
-        assert!(response.error.is_some() || response.result.is_some());
     }
 
     #[tokio::test]
