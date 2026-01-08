@@ -4,6 +4,7 @@
 
 use super::types::{RpcRequest, RpcResponse, ServerState};
 use serde_json::Value;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Dispatch an RPC request to the appropriate command handler
@@ -152,6 +153,15 @@ pub async fn dispatch(state: Arc<ServerState>, request: RpcRequest) -> RpcRespon
         "ws_reconnect" => dispatch_ws_reconnect(&state.ws_state, args).await,
 
         // ============================================================================
+        // MCP COMMANDS
+        // ============================================================================
+        "spawn_mcp_server" => dispatch_spawn_mcp_server(&state.mcp_state, args).await,
+        "send_mcp_request" => dispatch_send_mcp_request(&state.mcp_state, args).await,
+        "send_mcp_notification" => dispatch_send_mcp_notification(&state.mcp_state, args).await,
+        "ping_mcp_server" => dispatch_ping_mcp_server(&state.mcp_state, args).await,
+        "kill_mcp_server" => dispatch_kill_mcp_server(&state.mcp_state, args).await,
+
+        // ============================================================================
         // CATCH-ALL FOR UNIMPLEMENTED COMMANDS
         // ============================================================================
         _ => {
@@ -161,6 +171,112 @@ pub async fn dispatch(state: Arc<ServerState>, request: RpcRequest) -> RpcRespon
                 request.cmd
             ))
         }
+    }
+}
+
+// ============================================================================
+// MCP DISPATCH FUNCTIONS
+// ============================================================================
+
+async fn dispatch_spawn_mcp_server(
+    mcp_state: &Arc<crate::MCPState>,
+    args: Value,
+) -> RpcResponse {
+    let server_id = match args.get("serverId").or(args.get("server_id")).and_then(|v| v.as_str()) {
+        Some(value) => value.to_string(),
+        None => return RpcResponse::err("Missing 'serverId' parameter"),
+    };
+    let command = match args.get("command").and_then(|v| v.as_str()) {
+        Some(value) => value.to_string(),
+        None => return RpcResponse::err("Missing 'command' parameter"),
+    };
+    let command_args: Vec<String> = match args.get("args") {
+        Some(value) => serde_json::from_value(value.clone()).unwrap_or_default(),
+        None => Vec::new(),
+    };
+    let env: HashMap<String, String> = match args.get("env") {
+        Some(value) => serde_json::from_value(value.clone()).unwrap_or_default(),
+        None => HashMap::new(),
+    };
+
+    match crate::spawn_mcp_server_internal(
+        None,
+        mcp_state.as_ref(),
+        server_id,
+        command,
+        command_args,
+        env,
+    ) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_send_mcp_request(
+    mcp_state: &Arc<crate::MCPState>,
+    args: Value,
+) -> RpcResponse {
+    let server_id = match args.get("serverId").or(args.get("server_id")).and_then(|v| v.as_str()) {
+        Some(value) => value.to_string(),
+        None => return RpcResponse::err("Missing 'serverId' parameter"),
+    };
+    let request = match args.get("request").and_then(|v| v.as_str()) {
+        Some(value) => value.to_string(),
+        None => return RpcResponse::err("Missing 'request' parameter"),
+    };
+
+    match crate::send_mcp_request_internal(mcp_state.as_ref(), server_id, request) {
+        Ok(response) => RpcResponse::ok(response),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_send_mcp_notification(
+    mcp_state: &Arc<crate::MCPState>,
+    args: Value,
+) -> RpcResponse {
+    let server_id = match args.get("serverId").or(args.get("server_id")).and_then(|v| v.as_str()) {
+        Some(value) => value.to_string(),
+        None => return RpcResponse::err("Missing 'serverId' parameter"),
+    };
+    let notification = match args.get("notification").and_then(|v| v.as_str()) {
+        Some(value) => value.to_string(),
+        None => return RpcResponse::err("Missing 'notification' parameter"),
+    };
+
+    match crate::send_mcp_notification_internal(mcp_state.as_ref(), server_id, notification) {
+        Ok(()) => RpcResponse::ok(true),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_ping_mcp_server(
+    mcp_state: &Arc<crate::MCPState>,
+    args: Value,
+) -> RpcResponse {
+    let server_id = match args.get("serverId").or(args.get("server_id")).and_then(|v| v.as_str()) {
+        Some(value) => value.to_string(),
+        None => return RpcResponse::err("Missing 'serverId' parameter"),
+    };
+
+    match crate::ping_mcp_server_internal(mcp_state.as_ref(), server_id) {
+        Ok(is_alive) => RpcResponse::ok(is_alive),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_kill_mcp_server(
+    mcp_state: &Arc<crate::MCPState>,
+    args: Value,
+) -> RpcResponse {
+    let server_id = match args.get("serverId").or(args.get("server_id")).and_then(|v| v.as_str()) {
+        Some(value) => value.to_string(),
+        None => return RpcResponse::err("Missing 'serverId' parameter"),
+    };
+
+    match crate::kill_mcp_server_internal(mcp_state.as_ref(), server_id) {
+        Ok(()) => RpcResponse::ok(true),
+        Err(e) => RpcResponse::err(e),
     }
 }
 

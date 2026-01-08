@@ -2,6 +2,7 @@
 // These types mirror the JSON-RPC protocol used by Tauri's invoke system
 
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
 use std::time::Instant;
 
@@ -89,6 +90,7 @@ pub struct ServerState {
     pub config: ServerConfig,
     pub request_count: AtomicU64,
     pub ws_state: crate::WebSocketState,
+    pub mcp_state: Arc<crate::MCPState>,
 }
 
 impl Default for ServerConfig {
