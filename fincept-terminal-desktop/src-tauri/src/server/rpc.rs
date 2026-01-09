@@ -395,11 +395,13 @@ async fn dispatch_db_get_cached_market_data(args: Value) -> RpcResponse {
     // what: accept both snake_case and camelCase cache age parameters
     // why: the frontend previously sent maxAgeMinutes and hit missing-parameter errors
     // how: read the snake_case key first, then fall back to the camelCase variant
-    let max_age_minutes = args
+    let max_age_minutes = match args
         .get("max_age_minutes")
         .or_else(|| args.get("maxAgeMinutes"))
-        .and_then(|v| v.as_i64())
-        .ok_or_else(|| "Missing 'max_age_minutes' parameter".to_string())?;
+        .and_then(|v| v.as_i64()) {
+        Some(value) => value,
+        None => return RpcResponse::err("Missing 'max_age_minutes' parameter"),
+    };
 
     match crate::commands::database::db_get_cached_market_data(symbol, category, max_age_minutes).await {
         Ok(data) => RpcResponse::ok(data),
@@ -419,12 +421,14 @@ async fn dispatch_db_save_market_data_cache(args: Value) -> RpcResponse {
         Ok(value) => value,
         Err(e) => return RpcResponse::err(e),
     };
-    let quote_data = args
+    let quote_data = match args
         .get("quote_data")
         .or_else(|| args.get("quoteData"))
         .and_then(|v| v.as_str())
-        .map(str::to_string)
-        .ok_or_else(|| "Missing 'quote_data' parameter".to_string())?;
+        .map(str::to_string) {
+        Some(value) => value,
+        None => return RpcResponse::err("Missing 'quote_data' parameter"),
+    };
 
     match crate::commands::database::db_save_market_data_cache(symbol, category, quote_data).await {
         Ok(message) => RpcResponse::ok(serde_json::json!({ "message": message })),
@@ -2957,23 +2961,5 @@ mod tests {
         
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), 42);
-    }
-}
-
-async fn dispatch_get_shared_session() -> RpcResponse {
-    let master_key = std::env::var("FINCEPT_MASTER_KEY").ok();
-    
-    if let Some(key) = master_key {
-        // Return the key directly or wrapped in a structure
-        let response = serde_json::json!({
-            "available": true,
-            "api_key": key
-        });
-        RpcResponse::ok(response)
-    } else {
-        let response = serde_json::json!({
-            "available": false
-        });
-        RpcResponse::ok(response)
     }
 }

@@ -67,6 +67,7 @@ Before committing any changes, verify:
 - [ ] All function signatures match their call sites
 - [ ] All required imports are present
 - [ ] Feature flags are enabled in Cargo.toml for optional features
+- [ ] (For Web) fincept-terminal-desktop/run_web.sh works? Load webpage and see its console log.
 
 ### 5. Merge Workflow
 
