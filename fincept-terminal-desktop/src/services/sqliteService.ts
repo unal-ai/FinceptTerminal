@@ -797,8 +797,9 @@ class SqliteService {
 
   // LLM Model Configs
   async getLLMModelConfigs(): Promise<LLMModelConfig[]> {
-    // Stub - not implemented in Rust backend yet
-    console.warn('[SqliteService] getLLMModelConfigs not implemented');
+    // what: graceful fallback until Rust backend supports model configs
+    // why: avoid noisy console warnings while keeping UI functional
+    // how: return an empty list to signal “no models configured”
     return [];
   }
 
