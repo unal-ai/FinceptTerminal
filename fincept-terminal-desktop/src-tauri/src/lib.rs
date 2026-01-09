@@ -19,6 +19,7 @@ mod utils;
 mod setup;
 pub mod database;
 mod python_runtime;
+mod worker_pool;
 pub mod websocket;
 pub mod barter_integration;
 
