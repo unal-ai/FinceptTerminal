@@ -135,8 +135,8 @@ pub struct WSProviderConfig {
     pub api_secret: Option<String>,
     pub endpoint: Option<String>,
     pub config_data: Option<String>,
-    pub created_at: String,
-    pub updated_at: String,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
 }
 
 // ============================================================================
