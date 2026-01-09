@@ -29,7 +29,12 @@ This script automatically:
 1.  **Installs Miniforge** if Conda is missing.
 2.  **Creates the `fincept-dev` environment** with the correct packages (`glib`, `gtk3`, `python-3.12`, etc.) for the current OS.
 3.  **Configures Library Paths**: Sets `DYLD_LIBRARY_PATH` / `LD_LIBRARY_PATH` to fix runtime linking errors.
-4.  **Launches the App**: Starts the Backend and Frontend in the correct order.
+4.  **Sets Build Flags**: Configures `PKG_CONFIG_PATH` so builders find Conda libraries (fixing `glib-2.0 not found` errors).
+5.  **Launches the App**: Starts the Backend and Frontend in the correct order.
+
+> [!IMPORTANT]
+> If you encounter **"Library not found"** or **"pkg-config"** errors during build, **DO NOT run `apt-get`**.
+> These errors occur because the build tool cannot find the *Conda-installed* libraries. The `run_all_venv.sh` script sets the necessary environment variables to fix this. Always run the script!
 
 ## Headless Smoke Testing
 

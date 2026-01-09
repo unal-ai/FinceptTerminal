@@ -10,6 +10,8 @@ if [ -n "$CONDA_PREFIX" ]; then
     # Fix for macOS dyld / Linux ld not finding libpython
     export DYLD_LIBRARY_PATH="$CONDA_PREFIX/lib:$DYLD_LIBRARY_PATH"
     export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:$LD_LIBRARY_PATH"
+    # Fix for pkg-config not finding conda system libs (glib, gtk3, etc.)
+    export PKG_CONFIG_PATH="$CONDA_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH"
 elif [ -d ".venv" ]; then
      echo "✅ Using local .venv"
      # Use the local .venv python
