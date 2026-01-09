@@ -112,11 +112,21 @@ class MarketDataBridgeClass {
         try {
           console.log(`[MarketDataBridge] Attempting to fetch ${symbol} via backend...`);
           const backendQuote = await invoke('get_market_quote', { symbol });
-          if (backendQuote) {
+          // What: Check if backend returned valid quote data
+          // Why: Backend may return null/undefined instead of throwing error
+          // How: Validate backendQuote exists before normalizing
+          if (backendQuote != null) {
             return this.normalizeQuote(backendQuote, symbol);
+          } else {
+            console.warn(
+              `[MarketDataBridge] Backend returned no quote data for ${symbol}, falling back to mock quote.`
+            );
           }
         } catch (backendError) {
-          console.warn(`[MarketDataBridge] Backend fetch failed for ${symbol}, falling back to mock:`, backendError);
+          console.warn(
+            `[MarketDataBridge] Backend fetch failed for ${symbol}, falling back to mock:`,
+            backendError
+          );
         }
 
         // Fallback to mock data for development

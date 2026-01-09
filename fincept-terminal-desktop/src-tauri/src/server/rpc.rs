@@ -392,13 +392,52 @@ async fn dispatch_db_get_cached_market_data(args: Value) -> RpcResponse {
         Ok(value) => value,
         Err(e) => return RpcResponse::err(e),
     };
-    let max_age_minutes = match get_required_i64(&args, "max_age_minutes") {
-        Ok(value) => value,
-        Err(e) => return RpcResponse::err(e),
-    };
+    // what: accept both snake_case and camelCase cache age parameters
+    // why: the frontend previously sent maxAgeMinutes and hit missing-parameter errors
+    // how: read the snake_case key first, then fall back to the camelCase variant
+    let max_age_minutes = args
+        .get("max_age_minutes")
+        .or_else(|| args.get("maxAgeMinutes"))
+        .and_then(|v| v.as_i64())
+        .ok_or_else(|| "Missing 'max_age_minutes' parameter".to_string())?;
 
     match crate::commands::database::db_get_cached_market_data(symbol, category, max_age_minutes).await {
         Ok(data) => RpcResponse::ok(data),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_db_save_market_data_cache(args: Value) -> RpcResponse {
+    // what: persist fresh quote data into the market data cache
+    // why: lets the web client reuse cached quotes instead of refetching on every load
+    // how: accept both snake_case and camelCase payloads and delegate to the shared command
+    let symbol = match get_required_string(&args, "symbol") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
+    };
+    let category = match get_required_string(&args, "category") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
+    };
+    let quote_data = args
+        .get("quote_data")
+        .or_else(|| args.get("quoteData"))
+        .and_then(|v| v.as_str())
+        .map(str::to_string)
+        .ok_or_else(|| "Missing 'quote_data' parameter".to_string())?;
+
+    match crate::commands::database::db_save_market_data_cache(symbol, category, quote_data).await {
+        Ok(message) => RpcResponse::ok(serde_json::json!({ "message": message })),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_db_clear_market_data_cache() -> RpcResponse {
+    // what: clear all cached quotes
+    // why: provides parity with the desktop command when the web client needs a reset
+    // how: call the existing Tauri command and wrap the success message
+    match crate::commands::database::db_clear_market_data_cache().await {
+        Ok(message) => RpcResponse::ok(serde_json::json!({ "message": message })),
         Err(e) => RpcResponse::err(e),
     }
 }
@@ -1387,7 +1426,11 @@ async fn dispatch_db_get_credentials() -> RpcResponse {
 }
 
 async fn dispatch_db_save_credential(args: Value) -> RpcResponse {
-    let cred: crate::database::types::Credential = match serde_json::from_value(args.clone()) {
+    // what: accept credentials nested under a 'credential' key
+    // why: the frontend sends the Tauri-style payload `{ credential: {...} }`
+    // how: unwrap the credential field before deserializing, falling back to flat args
+    let cred_value = args.get("credential").cloned().unwrap_or_else(|| args.clone());
+    let cred: crate::database::types::Credential = match serde_json::from_value(cred_value) {
         Ok(c) => c,
         Err(e) => return RpcResponse::err(format!("Invalid credential data: {}", e)),
     };
@@ -1432,7 +1475,11 @@ async fn dispatch_db_get_llm_configs() -> RpcResponse {
 }
 
 async fn dispatch_db_save_llm_config(args: Value) -> RpcResponse {
-    let config: crate::database::types::LLMConfig = match serde_json::from_value(args.clone()) {
+    // what: support both wrapped and flat payloads for LLM configs
+    // why: the frontend sends `{ config: ... }` for Tauri parity, which previously failed web RPC deserialization
+    // how: try to unwrap a `config` field first, falling back to the raw args
+    let config_value = args.get("config").cloned().unwrap_or_else(|| args.clone());
+    let config: crate::database::types::LLMConfig = match serde_json::from_value(config_value) {
         Ok(c) => c,
         Err(e) => return RpcResponse::err(format!("Invalid LLM config data: {}", e)),
     };
@@ -1451,7 +1498,11 @@ async fn dispatch_db_get_llm_global_settings() -> RpcResponse {
 }
 
 async fn dispatch_db_save_llm_global_settings(args: Value) -> RpcResponse {
-    let settings: crate::database::types::LLMGlobalSettings = match serde_json::from_value(args.clone()) {
+    // what: deserialize LLM global settings from either a wrapped or flat payload
+    // why: mirrors the config handler so web RPC accepts the Tauri-style `{ settings: {...} }` shape
+    // how: pick the nested `settings` value when present, otherwise parse the full args map
+    let settings_value = args.get("settings").cloned().unwrap_or_else(|| args.clone());
+    let settings: crate::database::types::LLMGlobalSettings = match serde_json::from_value(settings_value) {
         Ok(s) => s,
         Err(e) => return RpcResponse::err(format!("Invalid LLM global settings: {}", e)),
     };
@@ -1483,7 +1534,11 @@ async fn dispatch_db_get_chat_sessions(args: Value) -> RpcResponse {
 }
 
 async fn dispatch_db_add_chat_message(args: Value) -> RpcResponse {
-    let message: crate::database::types::ChatMessage = match serde_json::from_value(args.clone()) {
+    // what: support wrapped chat messages
+    // why: the frontend posts `{ msg: {...} }` to mirror Tauri invoke semantics
+    // how: unwrap `msg` when present, otherwise parse the raw map
+    let message_value = args.get("msg").cloned().or_else(|| args.get("message").cloned()).unwrap_or_else(|| args.clone());
+    let message: crate::database::types::ChatMessage = match serde_json::from_value(message_value) {
         Ok(m) => m,
         Err(e) => return RpcResponse::err(format!("Invalid chat message: {}", e)),
     };
@@ -1528,7 +1583,11 @@ async fn dispatch_db_get_all_data_sources() -> RpcResponse {
 }
 
 async fn dispatch_db_save_data_source(args: Value) -> RpcResponse {
-    let source: crate::database::types::DataSource = match serde_json::from_value(args.clone()) {
+    // what: deserialize data sources from either wrapped or flat payloads
+    // why: the JS client currently wraps the object under `source` for Tauri compatibility
+    // how: peel off the wrapper before passing to serde
+    let source_value = args.get("source").cloned().unwrap_or_else(|| args.clone());
+    let source: crate::database::types::DataSource = match serde_json::from_value(source_value) {
         Ok(s) => s,
         Err(e) => return RpcResponse::err(format!("Invalid data source: {}", e)),
     };
@@ -2381,6 +2440,32 @@ async fn dispatch_ws_reconnect(state: &crate::WebSocketState, args: Value) -> Rp
     match manager.reconnect(&provider).await {
         Ok(_) => RpcResponse::ok(serde_json::json!({"reconnected": true})),
         Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+// What: RPC handler to retrieve shared session API key from environment
+// Why: Enables web kiosk mode by exposing FINCEPT_MASTER_KEY to frontend
+// How: Reads FINCEPT_MASTER_KEY env var and returns availability status + key
+// Security: This endpoint has no authentication/authorization checks.
+//           Any code that can call this RPC method can retrieve the API key.
+//           This is intentional for kiosk mode but should be used only in
+//           trusted environments. Consider adding authentication or logging
+//           for production deployments.
+async fn dispatch_get_shared_session() -> RpcResponse {
+    let master_key = std::env::var("FINCEPT_MASTER_KEY").ok();
+    
+    if let Some(key) = master_key {
+        // Return the key directly or wrapped in a structure
+        let response = serde_json::json!({
+            "available": true,
+            "api_key": key
+        });
+        RpcResponse::ok(response)
+    } else {
+        let response = serde_json::json!({
+            "available": false
+        });
+        RpcResponse::ok(response)
     }
 }
 

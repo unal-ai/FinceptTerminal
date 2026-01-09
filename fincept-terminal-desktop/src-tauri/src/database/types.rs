@@ -125,7 +125,10 @@ pub struct DataSource {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WSProviderConfig {
-    pub id: i64,
+    // what: make the identifier optional during deserialization
+    // why: new configs arrive from the UI without an id and were failing serde validation
+    // how: store the id as an Option so inserts can rely on AUTOINCREMENT
+    pub id: Option<i64>,
     pub provider_name: String,
     pub enabled: bool,
     pub api_key: Option<String>,

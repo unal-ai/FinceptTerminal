@@ -425,6 +425,55 @@ export const getDataSourceConnectionsByType = async (type: string): Promise<any[
   return [];
 };
 
+// ==================== WEBSOCKET PROVIDERS ====================
+
+export interface WSProviderConfig {
+  id?: number;
+  provider_name: string;
+  enabled: boolean;
+  api_key?: string | null;
+  api_secret?: string | null;
+  endpoint?: string | null;
+  config_data?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export const getWSProviderConfigs = async (): Promise<WSProviderConfig[]> => {
+  // what: fetch stored websocket provider configs through the Rust backend
+  // why: the UI depends on these rows to toggle and reconnect providers without stubs
+  // how: call the new db_get_ws_provider_configs command which returns typed configs
+  return await invoke<WSProviderConfig[]>('db_get_ws_provider_configs');
+};
+
+export const saveWSProviderConfig = async (config: WSProviderConfig): Promise<{ success: boolean; message: string }> => {
+  // what: persist or update a websocket provider configuration
+  // why: previously the call was stubbed, leaving the settings screen non-functional
+  // how: forward the config to the backend command that upserts by provider_name
+  return await invoke('db_save_ws_provider_config', { config });
+};
+
+export const deleteWSProviderConfig = async (providerName: string): Promise<{ success: boolean; message: string }> => {
+  // what: remove a websocket provider record by name
+  // why: ensures the UI delete action actually clears saved configs instead of logging a stub warning
+  // how: invoke the backend delete command with the providerName payload
+  return await invoke('db_delete_ws_provider_config', { provider_name: providerName });
+};
+
+export const toggleWSProviderEnabled = async (providerName: string): Promise<{ success: boolean; message: string; enabled: boolean }> => {
+  // what: flip the enabled flag for a given websocket provider
+  // why: lets the UI toggle connectivity state while keeping backend state authoritative
+  // how: call the backend toggle command which updates and returns the new enabled status
+  return await invoke('db_toggle_ws_provider_enabled', { provider_name: providerName });
+};
+
+export const getWSProviderConfig = async (providerName: string): Promise<WSProviderConfig | null> => {
+  // what: fetch a single provider config by name
+  // why: connection workflows need the latest credentials before reconnecting
+  // how: request the backend for the row and return null when missing
+  return await invoke<WSProviderConfig | null>('db_get_ws_provider_config', { provider_name: providerName });
+};
+
 // ==================== MCP SERVERS ====================
 
 export interface MCPServer {
@@ -625,11 +674,17 @@ export const getContextStorageStats = async (): Promise<any> => {
 // ==================== CACHE ====================
 
 export const saveMarketDataCache = async (symbol: string, category: string, quoteData: string): Promise<void> => {
-  await invoke('db_save_market_data_cache', { symbol, category, quoteData });
+  // what: align payload with Rust command parameters
+  // why: the web RPC expects snake_case args, otherwise caching throws missing-field errors
+  // how: send both the expected snake_case key and keep a camelCase alias for Tauri invoke compatibility
+  await invoke('db_save_market_data_cache', { symbol, category, quote_data: quoteData, quoteData });
 };
 
 export const getCachedMarketData = async (symbol: string, category: string, maxAgeMinutes: number): Promise<string | null> => {
-  return await invoke<string | null>('db_get_cached_market_data', { symbol, category, maxAgeMinutes });
+  // what: pass cache age using the snake_case key Rust RPC validates
+  // why: the previous camelCase argument caused "missing 'max_age_minutes'" errors and forced cache misses
+  // how: include the snake_case field while keeping the camelCase alias for Tauri IPC tolerance
+  return await invoke<string | null>('db_get_cached_market_data', { symbol, category, max_age_minutes: maxAgeMinutes, maxAgeMinutes });
 };
 
 export const clearMarketDataCache = async (): Promise<void> => {
@@ -959,32 +1014,12 @@ class SqliteService {
   getPortfolioOrders = getPortfolioOrders;
   getPortfolioTrades = getPortfolioTrades;
 
-  // WebSocket Provider Configs (not in Rust backend yet)
-  async getWSProviderConfigs(): Promise<any[]> {
-    // Not implemented - return empty array
-    console.warn('[SqliteService] getWSProviderConfigs not implemented in Rust backend');
-    return [];
-  }
-
-  async saveWSProviderConfig(config: any): Promise<{ success: boolean; message: string }> {
-    console.warn('[SqliteService] saveWSProviderConfig not implemented in Rust backend');
-    return { success: false, message: 'Not implemented' };
-  }
-
-  async deleteWSProviderConfig(id: number | string): Promise<{ success: boolean; message: string }> {
-    console.warn('[SqliteService] deleteWSProviderConfig not implemented in Rust backend');
-    return { success: false, message: 'Not implemented' };
-  }
-
-  async toggleWSProviderEnabled(id: number | string): Promise<{ success: boolean; message: string; enabled: boolean }> {
-    console.warn('[SqliteService] toggleWSProviderEnabled not implemented in Rust backend');
-    return { success: false, message: 'Not implemented', enabled: false };
-  }
-
-  async getWSProviderConfig(id: string): Promise<any | null> {
-    console.warn('[SqliteService] getWSProviderConfig not implemented in Rust backend');
-    return null;
-  }
+  // WebSocket Provider Configs
+  getWSProviderConfigs = getWSProviderConfigs;
+  saveWSProviderConfig = saveWSProviderConfig;
+  deleteWSProviderConfig = deleteWSProviderConfig;
+  toggleWSProviderEnabled = toggleWSProviderEnabled;
+  getWSProviderConfig = getWSProviderConfig;
 
   // API Keys helper methods
   async getAllApiKeys(): Promise<ApiKeys> {
