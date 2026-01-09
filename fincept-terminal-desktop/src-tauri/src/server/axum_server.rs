@@ -401,13 +401,19 @@ async fn health_handler(State(state): State<Arc<ServerState>>) -> impl IntoRespo
     })
 }
 
-/// Mock Forum API handler
+/// Mock Forum API handler.
+///
+/// This is an intentional catch-all mock for all `/api/forum/*` endpoints.
+/// The frontend expects different response shapes for different forum
+/// endpoints, but most are wrapped in a common "success" envelope. To keep
+/// the desktop app self-contained, we respond with a generic envelope that
+/// satisfies the forum widget without implementing the full backend API.
+///
+/// Originally introduced to satisfy `/api/forum/categories/:id/posts`, this
+/// handler now services all forum routes mounted under `/api/forum/*` with
+/// the same mock payload.
 async fn forum_handler(uri: axum::http::Uri) -> impl IntoResponse {
     tracing::debug!("Mock Forum API request: {}", uri);
-    // Return empty success response to satisfy the widget
-    // The frontend expects different structures for different endpoints, 
-    // but often wraps them in a success envelope.
-    // tailored for: /api/forum/categories/:id/posts
     
     Json(serde_json::json!({
         "success": true,
