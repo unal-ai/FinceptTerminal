@@ -115,12 +115,12 @@ class MarketDataBridgeClass {
           // What: Check if backend returned valid quote data
           // Why: Backend may return null/undefined instead of throwing error
           // How: Validate backendQuote exists before normalizing
-          if (backendQuote == null) {
+          if (backendQuote != null) {
+            return this.normalizeQuote(backendQuote, symbol);
+          } else {
             console.warn(
               `[MarketDataBridge] Backend returned no quote data for ${symbol}, falling back to mock quote.`
             );
-          } else {
-            return this.normalizeQuote(backendQuote, symbol);
           }
         } catch (backendError) {
           console.warn(
