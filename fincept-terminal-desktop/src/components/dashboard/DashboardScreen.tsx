@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { CommandBar } from '@/components/command-bar';
+import { IS_WEB } from '@/services/invoke';
 
 // Eagerly loaded tabs (needed immediately)
 import ForumTab from '@/components/tabs/ForumTab';
@@ -204,7 +205,7 @@ function FinxeptTerminalContent() {
   const { session, logout } = useAuth();
   const navigation = useNavigation();
   const { mode, toggleMode } = useInterfaceMode();
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState(IS_WEB ? 'settings' : 'dashboard');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const { updateAvailable, updateInfo, isInstalling, installProgress, error, installUpdate, dismissUpdate } = useAutoUpdater();
