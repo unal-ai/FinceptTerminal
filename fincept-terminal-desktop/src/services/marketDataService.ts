@@ -49,6 +49,52 @@ export interface PeriodReturnsResponse {
  */
 class MarketDataService {
   private isAvailable: boolean | null = null;
+  // what: normalize web/tauri invoke payloads into the expected response shape
+  // why: web RPC returns raw data, while Tauri commands return wrapped responses
+  // how: detect the presence of a success flag and wrap raw payloads consistently
+  private normalizeQuoteResponse(response: QuoteResponse | QuoteData): QuoteResponse {
+    if (typeof (response as QuoteResponse).success === 'boolean') {
+      return response as QuoteResponse;
+    }
+
+    return {
+      success: true,
+      data: response as QuoteData,
+      error: undefined
+    };
+  }
+
+  // what: normalize quotes arrays or wrapped responses
+  // why: web RPC returns arrays directly while Tauri returns QuotesResponse
+  // how: wrap arrays into the QuotesResponse shape used by the service
+  private normalizeQuotesResponse(response: QuotesResponse | QuoteData[]): QuotesResponse {
+    if (Array.isArray(response)) {
+      return {
+        success: true,
+        data: response,
+        error: undefined
+      };
+    }
+
+    return response;
+  }
+
+  // what: normalize period returns data from web RPC or Tauri response wrappers
+  // why: the UI expects PeriodReturnsResponse but web RPC returns the raw object
+  // how: wrap raw period return objects into the standard response contract
+  private normalizePeriodReturnsResponse(
+    response: PeriodReturnsResponse | PeriodReturns
+  ): PeriodReturnsResponse {
+    if (typeof (response as PeriodReturnsResponse).success === 'boolean') {
+      return response as PeriodReturnsResponse;
+    }
+
+    return {
+      success: true,
+      data: response as PeriodReturns,
+      error: undefined
+    };
+  }
 
   /**
    * Check if market data service is available
@@ -71,12 +117,13 @@ class MarketDataService {
    */
   async getQuote(symbol: string): Promise<QuoteData | null> {
     try {
-      const response = await invoke<QuoteResponse>('get_market_quote', { symbol });
+      const response = await invoke<QuoteResponse | QuoteData>('get_market_quote', { symbol });
+      const normalized = this.normalizeQuoteResponse(response);
 
-      if (response.success && response.data) {
-        return response.data;
+      if (normalized.success && normalized.data) {
+        return normalized.data;
       } else {
-        marketDataLogger.warn(`Failed to fetch quote for ${symbol}:`, response.error);
+        marketDataLogger.warn(`Failed to fetch quote for ${symbol}:`, normalized.error);
         return null;
       }
     } catch (error) {
@@ -91,12 +138,13 @@ class MarketDataService {
    */
   async getQuotes(symbols: string[]): Promise<QuoteData[]> {
     try {
-      const response = await invoke<QuotesResponse>('get_market_quotes', { symbols });
+      const response = await invoke<QuotesResponse | QuoteData[]>('get_market_quotes', { symbols });
+      const normalized = this.normalizeQuotesResponse(response);
 
-      if (response.success) {
-        return response.data;
+      if (normalized.success) {
+        return normalized.data;
       } else {
-        marketDataLogger.warn('Failed to fetch quotes:', response.error);
+        marketDataLogger.warn('Failed to fetch quotes:', normalized.error);
         return [];
       }
     } catch (error) {
@@ -111,12 +159,13 @@ class MarketDataService {
    */
   async getPeriodReturns(symbol: string): Promise<PeriodReturns | null> {
     try {
-      const response = await invoke<PeriodReturnsResponse>('get_period_returns', { symbol });
+      const response = await invoke<PeriodReturnsResponse | PeriodReturns>('get_period_returns', { symbol });
+      const normalized = this.normalizePeriodReturnsResponse(response);
 
-      if (response.success && response.data) {
-        return response.data;
+      if (normalized.success && normalized.data) {
+        return normalized.data;
       } else {
-        marketDataLogger.warn(`Failed to fetch returns for ${symbol}:`, response.error);
+        marketDataLogger.warn(`Failed to fetch returns for ${symbol}:`, normalized.error);
         return null;
       }
     } catch (error) {
