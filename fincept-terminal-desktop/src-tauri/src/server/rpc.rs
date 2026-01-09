@@ -121,6 +121,13 @@ pub async fn dispatch(state: Arc<ServerState>, request: RpcRequest) -> RpcRespon
         "db_save_data_source" => dispatch_db_save_data_source(args).await,
         "db_delete_data_source" => dispatch_db_delete_data_source(args).await,
 
+        // WEBSOCKET PROVIDER COMMANDS
+        "db_get_ws_provider_configs" => dispatch_db_get_ws_provider_configs().await,
+        "db_get_ws_provider_config" => dispatch_db_get_ws_provider_config(args).await,
+        "db_save_ws_provider_config" => dispatch_db_save_ws_provider_config(args).await,
+        "db_delete_ws_provider_config" => dispatch_db_delete_ws_provider_config(args).await,
+        "db_toggle_ws_provider_enabled" => dispatch_db_toggle_ws_provider_enabled(args).await,
+
         // PORTFOLIO COMMANDS
         "db_list_portfolios" => dispatch_db_list_portfolios().await,
         "db_get_portfolio" => dispatch_db_get_portfolio(args).await,
@@ -1609,6 +1616,67 @@ async fn dispatch_db_delete_data_source(args: Value) -> RpcResponse {
     };
 
     match crate::database::operations::delete_data_source(&id) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+// WEBSOCKET PROVIDER DISPATCH FUNCTIONS
+
+async fn dispatch_db_get_ws_provider_configs() -> RpcResponse {
+    match crate::database::operations::get_ws_provider_configs() {
+        Ok(configs) => RpcResponse::ok(configs),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_get_ws_provider_config(args: Value) -> RpcResponse {
+    let provider_name = match args.get("provider_name").or(args.get("providerName")).and_then(|v| v.as_str()) {
+        Some(p) => p.to_string(),
+        None => return RpcResponse::err("Missing 'provider_name' parameter"),
+    };
+
+    match crate::database::operations::get_ws_provider_config(&provider_name) {
+        Ok(config) => RpcResponse::ok(config),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_save_ws_provider_config(args: Value) -> RpcResponse {
+    // what: accept provider configs in either wrapped or flat form
+    // why: the frontend mirrors Tauri's `{ config }` payload shape
+    // how: unwrap the config field when present before deserializing
+    let config_value = args.get("config").cloned().unwrap_or_else(|| args.clone());
+    let config: crate::database::types::WSProviderConfig = match serde_json::from_value(config_value) {
+        Ok(c) => c,
+        Err(e) => return RpcResponse::err(format!("Invalid WS provider config data: {}", e)),
+    };
+
+    match crate::database::operations::save_ws_provider_config(&config) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_delete_ws_provider_config(args: Value) -> RpcResponse {
+    let provider_name = match args.get("provider_name").or(args.get("providerName")).and_then(|v| v.as_str()) {
+        Some(p) => p.to_string(),
+        None => return RpcResponse::err("Missing 'provider_name' parameter"),
+    };
+
+    match crate::database::operations::delete_ws_provider_config(&provider_name) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e.to_string()),
+    }
+}
+
+async fn dispatch_db_toggle_ws_provider_enabled(args: Value) -> RpcResponse {
+    let provider_name = match args.get("provider_name").or(args.get("providerName")).and_then(|v| v.as_str()) {
+        Some(p) => p.to_string(),
+        None => return RpcResponse::err("Missing 'provider_name' parameter"),
+    };
+
+    match crate::database::operations::toggle_ws_provider_enabled(&provider_name) {
         Ok(result) => RpcResponse::ok(result),
         Err(e) => RpcResponse::err(e.to_string()),
     }
