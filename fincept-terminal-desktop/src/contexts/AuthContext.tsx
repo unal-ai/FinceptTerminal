@@ -404,41 +404,59 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Check for shared session (KIOSK MODE)
   const checkSharedSession = async (): Promise<SessionData | null> => {
-    try {
-      const { invoke } = await import('@/services/invoke');
-      const result: any = await invoke('get_shared_session');
-
-      if (result && result.available && result.api_key) {
-        console.log('Shared session detected (Kiosk Mode)');
-
-        // Validate the shared key like a regular session
-        // We use a dummy device ID for the shared terminal
-        const sharedDeviceId = 'shared_terminal_device';
-        const apiKey = result.api_key;
-
-        const validSession = await validateSession({
-          authenticated: true,
-          user_type: 'registered',
-          api_key: apiKey,
-          device_id: sharedDeviceId
-        });
-
-        if (validSession) {
-          // Enhanced session data for shared terminal
-          return {
-            ...validSession,
-            user_info: {
-              ...validSession.user_info,
-              // Override display to show it's a shared terminal
-              username: validSession.user_info?.username || 'Terminal User'
-            }
-          };
-        }
-      }
-    } catch (error) {
-      console.error('Failed to check shared session:', error);
+    // Skip in DEV mode - guest access is mocked
+    if (import.meta.env.DEV) {
+      return null;
     }
-    return null;
+
+    // Add timeout to prevent indefinite hang
+    const timeoutMs = 5000;
+    const timeoutPromise = new Promise<null>((resolve) => {
+      setTimeout(() => {
+        console.warn('[Auth] Shared session check timed out after 5s');
+        resolve(null);
+      }, timeoutMs);
+    });
+
+    const checkPromise = (async (): Promise<SessionData | null> => {
+      try {
+        const { invoke } = await import('@/services/invoke');
+        const result: any = await invoke('get_shared_session');
+
+        if (result && result.available && result.api_key) {
+          console.log('Shared session detected (Kiosk Mode)');
+
+          // Validate the shared key like a regular session
+          // We use a dummy device ID for the shared terminal
+          const sharedDeviceId = 'shared_terminal_device';
+          const apiKey = result.api_key;
+
+          const validSession = await validateSession({
+            authenticated: true,
+            user_type: 'registered',
+            api_key: apiKey,
+            device_id: sharedDeviceId
+          });
+
+          if (validSession) {
+            // Enhanced session data for shared terminal
+            return {
+              ...validSession,
+              user_info: {
+                ...validSession.user_info,
+                // Override display to show it's a shared terminal
+                username: validSession.user_info?.username || 'Terminal User'
+              }
+            };
+          }
+        }
+      } catch (error) {
+        console.error('Failed to check shared session:', error);
+      }
+      return null;
+    })();
+
+    return Promise.race([checkPromise, timeoutPromise]);
   };
 
   // Initialize session on app load

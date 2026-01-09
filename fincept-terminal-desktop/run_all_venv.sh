@@ -85,10 +85,26 @@ conda activate "$ENV_NAME"
 
 echo -e "${GREEN}✅ Active Environment: $CONDA_PREFIX${NC}"
 
-# Check/Install Python deps via pip if needed (optional integration point)
-# if [ -f "../src-tauri/resources/requirements-numpy2.txt" ]; then
-#     pip install -r "../src-tauri/resources/requirements-numpy2.txt"
-# fi
+# Install essential Python dependencies for the backend
+REQUIREMENTS_FILE="src-tauri/resources/requirements-numpy2.txt"
+if [ -f "$REQUIREMENTS_FILE" ]; then
+    echo -e "${BLUE}📦 Installing Python dependencies from $REQUIREMENTS_FILE...${NC}"
+    # Install key packages needed for market data - faster than full requirements
+    echo -e "${BLUE}📦 Installing essential packages (yfinance, pandas, numpy)...${NC}"
+    pip install --quiet yfinance pandas numpy requests aiohttp feedparser || {
+        echo -e "${RED}⚠️  Some packages failed to install. Trying individually...${NC}"
+        pip install yfinance || true
+        pip install pandas || true
+        pip install numpy || true
+    }
+    echo -e "${GREEN}✅ Essential Python packages installed.${NC}"
+    
+    # Optionally install full requirements (uncomment for complete setup)
+    # echo -e "${BLUE}📦 Installing full requirements (this may take a while)...${NC}"
+    # pip install -r "$REQUIREMENTS_FILE"
+else
+    echo -e "${RED}⚠️  Requirements file not found: $REQUIREMENTS_FILE${NC}"
+fi
 
 # Delegate to run_web.sh
 ./run_web.sh
