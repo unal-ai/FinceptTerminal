@@ -208,6 +208,15 @@ pub async fn dispatch(state: Arc<ServerState>, request: RpcRequest) -> RpcRespon
         "kill_mcp_server" => dispatch_kill_mcp_server(&state.mcp_state, args).await,
         "db_get_mcp_servers" => dispatch_db_get_mcp_servers().await,
 
+
+        // AGENT COMMANDS
+        "list_agents" => dispatch_list_agents(args).await,
+        "get_agent_config" => dispatch_get_agent_config(args).await,
+        "save_agent_config" => dispatch_save_agent_config(args).await,
+        "get_agent_providers" => dispatch_get_agent_providers().await,
+        "execute_single_agent" => dispatch_execute_single_agent(args).await,
+        "execute_agent_team" => dispatch_execute_agent_team(args).await,
+
         // CATCH-ALL FOR UNIMPLEMENTED COMMANDS
         _ => {
             if crate::command_registry::is_known_command(request.cmd.as_str()) {
@@ -342,6 +351,121 @@ async fn dispatch_db_get_mcp_servers() -> RpcResponse {
         Ok(servers) => RpcResponse::ok(servers),
         Err(e) => RpcResponse::err(e),
     }
+}
+
+
+// AGENT DISPATCH FUNCTIONS
+
+fn execute_agent_manager_command_runtime(command: &str, args: Vec<String>) -> RpcResponse {
+    let mut cmd_args = vec![command.to_string()];
+    cmd_args.extend(args);
+
+    match execute_python_script_runtime("agents/agent_manager.py", cmd_args) {
+        Ok(result) => RpcResponse::ok(result),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_list_agents(args: Value) -> RpcResponse {
+    let category = match get_required_string(&args, "category") {
+        Ok(v) => v,
+        Err(e) => return RpcResponse::err(e),
+    };
+    execute_agent_manager_command_runtime("list_agents", vec![category])
+}
+
+async fn dispatch_get_agent_config(args: Value) -> RpcResponse {
+    let category = match get_required_string(&args, "category") {
+        Ok(v) => v,
+        Err(e) => return RpcResponse::err(e),
+    };
+    let agent_id = match get_required_string(&args, "agentId")
+        .or_else(|_| get_required_string(&args, "agent_id")) {
+        Ok(v) => v,
+        Err(e) => return RpcResponse::err(e),
+    };
+    execute_agent_manager_command_runtime("get_config", vec![category, agent_id])
+}
+
+async fn dispatch_save_agent_config(args: Value) -> RpcResponse {
+    let category = match get_required_string(&args, "category") {
+        Ok(v) => v,
+        Err(e) => return RpcResponse::err(e),
+    };
+    let agent_id = match get_required_string(&args, "agentId")
+        .or_else(|_| get_required_string(&args, "agent_id")) {
+        Ok(v) => v,
+        Err(e) => return RpcResponse::err(e),
+    };
+    let config_json = match get_required_string(&args, "configJson")
+        .or_else(|_| get_required_string(&args, "config_json")) {
+        Ok(v) => v,
+        Err(e) => return RpcResponse::err(e),
+    };
+    execute_agent_manager_command_runtime("save_config", vec![category, agent_id, config_json])
+}
+
+async fn dispatch_get_agent_providers() -> RpcResponse {
+    execute_agent_manager_command_runtime("get_providers", vec![])
+}
+
+async fn dispatch_execute_single_agent(args: Value) -> RpcResponse {
+    let category = match get_required_string(&args, "category") {
+        Ok(v) => v,
+        Err(e) => return RpcResponse::err(e),
+    };
+    let agent_id = match get_required_string(&args, "agentId")
+        .or_else(|_| get_required_string(&args, "agent_id")) {
+        Ok(v) => v,
+        Err(e) => return RpcResponse::err(e),
+    };
+    let query = match get_required_string(&args, "query") {
+        Ok(v) => v,
+        Err(e) => return RpcResponse::err(e),
+    };
+    let llm_config_json = match get_required_string(&args, "llmConfigJson")
+        .or_else(|_| get_required_string(&args, "llm_config_json")) {
+        Ok(v) => v,
+        Err(e) => return RpcResponse::err(e),
+    };
+    let api_keys_json = match get_required_string(&args, "apiKeysJson")
+        .or_else(|_| get_required_string(&args, "api_keys_json")) {
+        Ok(v) => v,
+        Err(e) => return RpcResponse::err(e),
+    };
+    
+    let cmd_args = vec![category, agent_id, query, llm_config_json, api_keys_json];
+    execute_agent_manager_command_runtime("execute_agent", cmd_args)
+}
+
+async fn dispatch_execute_agent_team(args: Value) -> RpcResponse {
+    let category = match get_required_string(&args, "category") {
+        Ok(v) => v,
+        Err(e) => return RpcResponse::err(e),
+    };
+    let query = match get_required_string(&args, "query") {
+        Ok(v) => v,
+        Err(e) => return RpcResponse::err(e),
+    };
+    let llm_config_json = match get_required_string(&args, "llmConfigJson")
+        .or_else(|_| get_required_string(&args, "llm_config_json")) {
+        Ok(v) => v,
+        Err(e) => return RpcResponse::err(e),
+    };
+    let api_keys_json = match get_required_string(&args, "apiKeysJson")
+        .or_else(|_| get_required_string(&args, "api_keys_json")) {
+        Ok(v) => v,
+        Err(e) => return RpcResponse::err(e),
+    };
+    
+    let mut cmd_args = vec![category, query, llm_config_json, api_keys_json];
+    
+    if let Some(agent_ids_json) = get_optional_string(&args, "agentIdsJson")
+        .or_else(|| get_optional_string(&args, "agent_ids_json")) {
+        cmd_args.push(agent_ids_json);
+    }
+    
+    execute_agent_manager_command_runtime("execute_team", cmd_args)
 }
 
 // MARKET DATA DISPATCH FUNCTIONS

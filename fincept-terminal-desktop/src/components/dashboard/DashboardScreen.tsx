@@ -205,7 +205,7 @@ function FinxeptTerminalContent() {
   const { session, logout } = useAuth();
   const navigation = useNavigation();
   const { mode, toggleMode } = useInterfaceMode();
-  const [activeTab, setActiveTab] = useState(IS_WEB ? 'settings' : 'dashboard');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const { updateAvailable, updateInfo, isInstalling, installProgress, error, installUpdate, dismissUpdate } = useAutoUpdater();

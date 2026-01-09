@@ -1,0 +1,20 @@
+{
+    "title": "Settings",
+    "sidebar": {
+        "credentials": "API Keys",
+        "llm": "LLM Configuration",
+        "dataSources": "Data Sources",
+        "backtesting": "Backtesting",
+        "tabLayout": "Tab Layout",
+        "appearance": "Appearance",
+        "language": "Language"
+    },
+    "credentials": {
+        "title": "API Credentials",
+        "description": "Manage your API keys for various services."
+    },
+    "llm": {
+        "connected": "Connected",
+        "disconnected": "Disconnected"
+    }
+}
