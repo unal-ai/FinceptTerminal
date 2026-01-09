@@ -49,7 +49,10 @@ def get_historical(symbol, start_date, end_date):
         hist = ticker.history(start=start_date, end=end_date)
 
         if hist.empty:
-            return None
+            # what: return an empty array instead of null when no historical data is available
+            # why: the Rust caller deserializes into a Vec and fails on a null JSON value
+            # how: return a list literal so JSON serialization produces [] consistently
+            return []
 
         historical_data = []
         for index, row in hist.iterrows():
