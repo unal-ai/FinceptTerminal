@@ -5,6 +5,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { AuthApiService } from '@/services/authApi';
 import { PaymentApiService } from '@/services/paymentApi';
 import { UserApiService } from '@/services/userApi';
+import { IS_WEB } from '@/services/invoke';
 
 // Response types to match your API
 export interface LoginResponse {
@@ -132,6 +133,9 @@ interface AuthContextType {
   isFirstTimeUser: boolean;
   availablePlans: SubscriptionPlan[];
   isLoadingPlans: boolean;
+  getSharedApiKey: () => string | null;
+  setSharedApiKey: (apiKey: string) => Promise<{ success: boolean; error?: string }>;
+  clearSharedApiKey: () => void;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string; mfa_required?: boolean }>;
   signup: (
     username: string,
@@ -195,6 +199,7 @@ const generateDeviceId = (): string => {
 
 // Session storage utilities
 const STORAGE_KEY = 'fincept_session';
+const SHARED_API_KEY_STORAGE_KEY = 'fincept_shared_api_key';
 
 const saveSession = (session: SessionData) => {
   try {
@@ -204,6 +209,31 @@ const saveSession = (session: SessionData) => {
     }));
   } catch (error) {
     console.error('Failed to save session:', error);
+  }
+};
+
+const saveSharedApiKey = (apiKey: string) => {
+  try {
+    localStorage.setItem(SHARED_API_KEY_STORAGE_KEY, apiKey);
+  } catch (error) {
+    console.error('Failed to save shared API key:', error);
+  }
+};
+
+const loadSharedApiKey = (): string | null => {
+  try {
+    return localStorage.getItem(SHARED_API_KEY_STORAGE_KEY);
+  } catch (error) {
+    console.error('Failed to load shared API key:', error);
+    return null;
+  }
+};
+
+const clearSharedApiKey = () => {
+  try {
+    localStorage.removeItem(SHARED_API_KEY_STORAGE_KEY);
+  } catch (error) {
+    console.error('Failed to clear shared API key:', error);
   }
 };
 
@@ -253,20 +283,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Fetch user profile after login
   // Find this function in AuthContext.tsx and update it:
-const fetchUserProfile = async (apiKey: string): Promise<UserProfileResponse['data'] | null> => {
-  try {
-    const result = await AuthApiService.getUserProfile(apiKey);
+  const fetchUserProfile = async (apiKey: string): Promise<UserProfileResponse['data'] | null> => {
+    try {
+      const result = await AuthApiService.getUserProfile(apiKey);
 
-    if (result.success && result.data) {
-      const profileData = (result.data as any).data || result.data;
-      return profileData;
+      if (result.success && result.data) {
+        const profileData = (result.data as any).data || result.data;
+        return profileData;
+      }
+      return null;
+    } catch (error) {
+      console.error('Failed to fetch user profile:', error);
+      return null;
     }
-    return null;
-  } catch (error) {
-    console.error('Failed to fetch user profile:', error);
-    return null;
-  }
-};
+  };
 
   // Fetch user subscription data
   const fetchUserSubscription = async (apiKey: string): Promise<UserSubscription | null> => {
@@ -360,25 +390,101 @@ const fetchUserProfile = async (apiKey: string): Promise<UserProfileResponse['da
     return null;
   };
 
+  // Check for shared session (KIOSK MODE)
+  const checkSharedSession = async (): Promise<SessionData | null> => {
+    try {
+      const { invoke } = await import('@/services/invoke');
+      const result: any = await invoke('get_shared_session');
+
+      if (result && result.available && result.api_key) {
+        console.log('Shared session detected (Kiosk Mode)');
+
+        // Validate the shared key like a regular session
+        // We use a dummy device ID for the shared terminal
+        const sharedDeviceId = 'shared_terminal_device';
+        const apiKey = result.api_key;
+
+        const validSession = await validateSession({
+          authenticated: true,
+          user_type: 'registered',
+          api_key: apiKey,
+          device_id: sharedDeviceId
+        });
+
+        if (validSession) {
+          // Enhanced session data for shared terminal
+          return {
+            ...validSession,
+            user_info: {
+              ...validSession.user_info,
+              // Override display to show it's a shared terminal
+              username: validSession.user_info?.username || 'Terminal User'
+            }
+          };
+        }
+      }
+    } catch (error) {
+      console.error('Failed to check shared session:', error);
+    }
+    return null;
+  };
+
   // Initialize session on app load
   useEffect(() => {
     const initializeSession = async () => {
       try {
         setIsFirstTimeUser(checkIsFirstTimeUser());
 
-        const savedSession = loadSession();
+        let localSessionValid = false;
+        const sharedApiKey = IS_WEB ? loadSharedApiKey() : null;
 
-        if (savedSession) {
-          if (savedSession.user_type === 'registered') {
-            const validatedSession = await validateSession(savedSession);
-            if (validatedSession) {
-              setSession(validatedSession);
-              saveSession(validatedSession);
-            } else {
-              clearSession();
-            }
+        if (sharedApiKey) {
+          const sharedDeviceId = 'shared_terminal_device';
+          const validatedSession = await validateSession({
+            authenticated: true,
+            user_type: 'registered',
+            api_key: sharedApiKey,
+            device_id: sharedDeviceId
+          });
+
+          if (validatedSession) {
+            setSession(validatedSession);
+            saveSession(validatedSession);
+            localSessionValid = true;
           } else {
-            setSession(savedSession);
+            clearSharedApiKey();
+            clearSession();
+          }
+        }
+
+        // 1. Check for local storage session first
+        if (!sharedApiKey) {
+          const savedSession = loadSession();
+
+          if (savedSession) {
+            if (savedSession.user_type === 'registered') {
+              const validatedSession = await validateSession(savedSession);
+              if (validatedSession) {
+                setSession(validatedSession);
+                saveSession(validatedSession);
+                localSessionValid = true;
+              } else {
+                clearSession();
+              }
+            } else {
+              setSession(savedSession);
+              localSessionValid = true;
+            }
+          }
+        }
+
+        // 2. If no valid local session, check for Shared Session (Kiosk Mode)
+        if (!localSessionValid) {
+          const sharedSession = await checkSharedSession();
+          if (sharedSession) {
+            setSession(sharedSession);
+            // We don't save share session to local storage to ensure 
+            // it re-validates against backend config on every restart
           }
         }
 
@@ -761,8 +867,8 @@ const fetchUserProfile = async (apiKey: string): Promise<UserProfileResponse['da
 
       const result = await AuthApiService.registerDevice({
         device_id: deviceId,
-        device_name: `Fincept Terminal - ${navigator.platform}`,
-        platform: 'desktop',
+        device_name: `${IS_WEB ? 'Fincept Terminal Web' : 'Fincept Terminal'} - ${navigator.platform}`,
+        platform: IS_WEB ? 'web' : 'desktop',
         hardware_info: {
           platform: navigator.platform,
           user_agent: navigator.userAgent,
@@ -804,6 +910,63 @@ const fetchUserProfile = async (apiKey: string): Promise<UserProfileResponse['da
     }
   };
 
+  const getSharedApiKey = (): string | null => {
+    if (!IS_WEB) {
+      return null;
+    }
+    return loadSharedApiKey();
+  };
+
+  const setSharedApiKey = async (apiKey: string): Promise<{ success: boolean; error?: string }> => {
+    if (!IS_WEB) {
+      return { success: false, error: 'Shared session is only available in web mode' };
+    }
+    const trimmedKey = apiKey.trim();
+    if (!trimmedKey) {
+      return { success: false, error: 'API key is required' };
+    }
+
+    try {
+      saveSharedApiKey(trimmedKey);
+
+      const sharedDeviceId = 'shared_terminal_device';
+      const validatedSession = await validateSession({
+        authenticated: true,
+        user_type: 'registered',
+        api_key: trimmedKey,
+        device_id: sharedDeviceId
+      });
+
+      if (validatedSession) {
+        setSession(validatedSession);
+        saveSession(validatedSession);
+        setIsFirstTimeUser(checkIsFirstTimeUser());
+        return { success: true };
+      }
+
+      clearSharedApiKey();
+      clearSession();
+      return { success: false, error: 'Invalid API key' };
+    } catch (error) {
+      clearSharedApiKey();
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to apply shared session'
+      };
+    }
+  };
+
+  const clearSharedApiKeySession = () => {
+    if (!IS_WEB) {
+      clearSharedApiKey();
+      return;
+    }
+    clearSharedApiKey();
+    setSession(null);
+    clearSession();
+    setIsFirstTimeUser(checkIsFirstTimeUser());
+  };
+
   // Logout function
   const logout = async (): Promise<void> => {
     setSession(null);
@@ -817,6 +980,9 @@ const fetchUserProfile = async (apiKey: string): Promise<UserProfileResponse['da
     isFirstTimeUser,
     availablePlans,
     isLoadingPlans,
+    getSharedApiKey,
+    setSharedApiKey,
+    clearSharedApiKey: clearSharedApiKeySession,
     login,
     signup,
     verifyOtp,

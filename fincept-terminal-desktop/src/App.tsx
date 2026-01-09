@@ -1,13 +1,14 @@
 // File: src/App.tsx
 // Main application file that handles routing between authentication screens, payment flow, and dashboard
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from './contexts/AuthContext';
 import { NavigationProvider } from './contexts/NavigationContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { DataSourceProvider } from './contexts/DataSourceContext';
 import { ProviderProvider } from './contexts/ProviderContext';
 import { workflowService } from './services/workflowService';
+import { IS_WEB } from './services/invoke';
 
 // Import screens
 import LoginScreen from './components/auth/LoginScreen';
@@ -43,13 +44,15 @@ export type Screen =
   | 'dashboard';
 
 const App: React.FC = () => {
-  const { session, isLoading } = useAuth();
-  const [currentScreen, setCurrentScreen] = useState<Screen>('login');
+  const { session, isLoading, setupGuestAccess } = useAuth();
+  const [currentScreen, setCurrentScreen] = useState<Screen>(IS_WEB ? 'dashboard' : 'login');
   const [hasChosenFreePlan, setHasChosenFreePlan] = useState(false);
   const [cameFromLogin, setCameFromLogin] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [setupComplete, setSetupComplete] = useState(false);
   const [checkingSetup, setCheckingSetup] = useState(true);
+  const guestSetupAttempted = useRef(false);
+  const [isGuestSetupLoading, setIsGuestSetupLoading] = useState(false);
 
   // Check setup status on app initialization
   useEffect(() => {
@@ -82,6 +85,36 @@ const App: React.FC = () => {
     };
   }, []);
 
+  // Auto-provision guest session for web mode to avoid login flow
+  useEffect(() => {
+    if (!IS_WEB || isLoading || session || guestSetupAttempted.current) {
+      return;
+    }
+
+    let isCancelled = false;
+    guestSetupAttempted.current = true;
+    setIsGuestSetupLoading(true);
+
+    setupGuestAccess()
+      .then((result) => {
+        if (!result.success) {
+          console.error('[App] Guest setup failed:', result.error || 'Unknown error');
+        }
+      })
+      .catch((error) => {
+        console.error('[App] Guest setup failed:', error);
+      })
+      .finally(() => {
+        if (!isCancelled) {
+          setIsGuestSetupLoading(false);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [isLoading, session, setupGuestAccess]);
+
   // Handle payment success URL parameters
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -98,6 +131,12 @@ const App: React.FC = () => {
   // Auto-navigation based on authentication state
   useEffect(() => {
     if (!isLoading) {
+      if (IS_WEB) {
+        if (currentScreen !== 'dashboard') {
+          setCurrentScreen('dashboard');
+        }
+        return;
+      }
       if (session?.authenticated) {
         const isFreePlan = session.user_info?.account_type === 'free';
         const hasPaidPlan = session.user_info?.account_type &&
@@ -163,7 +202,7 @@ const App: React.FC = () => {
   }
 
   // Show loading screen while checking authentication
-  if (isLoading) {
+  if (isLoading || isGuestSetupLoading) {
     return (
       <div className="min-h-screen bg-black relative overflow-hidden flex items-center justify-center" style={{ minHeight: '100vh', height: '100%' }}>
         <BackgroundPattern />
@@ -176,7 +215,7 @@ const App: React.FC = () => {
   }
 
   // If authenticated and should show dashboard
-  if (session?.authenticated && currentScreen === 'dashboard') {
+  if ((session?.authenticated || IS_WEB) && currentScreen === 'dashboard') {
     return (
       <>
         <ProviderProvider>

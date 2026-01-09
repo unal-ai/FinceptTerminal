@@ -22,6 +22,7 @@ pub async fn dispatch(state: Arc<ServerState>, request: RpcRequest) -> RpcRespon
                 .unwrap_or("World");
             RpcResponse::ok(format!("Hello, {}! You've been greeted from Rust Web Server!", name))
         }
+        "get_shared_session" => dispatch_get_shared_session().await,
 
         // MARKET DATA COMMANDS
         "get_market_quote" => dispatch_market_quote(args).await,
@@ -31,6 +32,7 @@ pub async fn dispatch(state: Arc<ServerState>, request: RpcRequest) -> RpcRespon
         "get_historical_data" => dispatch_historical_data(args).await,
         "get_stock_info" => dispatch_stock_info(args).await,
         "get_financials" => dispatch_financials(args).await,
+        "db_get_cached_market_data" => dispatch_db_get_cached_market_data(args).await,
 
         // NEWS COMMANDS
         "fetch_all_rss_news" => dispatch_fetch_all_rss_news().await,
@@ -195,6 +197,7 @@ pub async fn dispatch(state: Arc<ServerState>, request: RpcRequest) -> RpcRespon
         "send_mcp_notification" => dispatch_send_mcp_notification(&state.mcp_state, args).await,
         "ping_mcp_server" => dispatch_ping_mcp_server(&state.mcp_state, args).await,
         "kill_mcp_server" => dispatch_kill_mcp_server(&state.mcp_state, args).await,
+        "db_get_mcp_servers" => dispatch_db_get_mcp_servers().await,
 
         // CATCH-ALL FOR UNIMPLEMENTED COMMANDS
         _ => {
@@ -325,6 +328,13 @@ async fn dispatch_kill_mcp_server(
     }
 }
 
+async fn dispatch_db_get_mcp_servers() -> RpcResponse {
+    match crate::commands::database::db_get_mcp_servers().await {
+        Ok(servers) => RpcResponse::ok(servers),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
 // MARKET DATA DISPATCH FUNCTIONS
 
 async fn dispatch_market_quote(args: Value) -> RpcResponse {
@@ -369,6 +379,26 @@ async fn dispatch_period_returns(args: Value) -> RpcResponse {
 async fn dispatch_market_health() -> RpcResponse {
     match crate::data_sources::yfinance::YFinanceProviderWeb::health_check().await {
         Ok(healthy) => RpcResponse::ok(healthy),
+        Err(e) => RpcResponse::err(e),
+    }
+}
+
+async fn dispatch_db_get_cached_market_data(args: Value) -> RpcResponse {
+    let symbol = match get_required_string(&args, "symbol") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
+    };
+    let category = match get_required_string(&args, "category") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
+    };
+    let max_age_minutes = match get_required_i64(&args, "max_age_minutes") {
+        Ok(value) => value,
+        Err(e) => return RpcResponse::err(e),
+    };
+
+    match crate::commands::database::db_get_cached_market_data(symbol, category, max_age_minutes).await {
+        Ok(data) => RpcResponse::ok(data),
         Err(e) => RpcResponse::err(e),
     }
 }
@@ -516,6 +546,16 @@ fn get_required_i32(args: &Value, key: &str) -> Result<i32, String> {
 
     i32::try_from(int_value)
         .map_err(|_| format!("Invalid '{}' parameter: value {} out of range for i32", key, int_value))
+}
+
+fn get_required_i64(args: &Value, key: &str) -> Result<i64, String> {
+    let value = args
+        .get(key)
+        .ok_or_else(|| format!("Missing '{}' parameter", key))?;
+
+    value
+        .as_i64()
+        .ok_or_else(|| format!("Invalid '{}' parameter: expected integer", key))
 }
 
 fn get_optional_bool(args: &Value, key: &str) -> Option<bool> {
@@ -2832,5 +2872,23 @@ mod tests {
         
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), 42);
+    }
+}
+
+async fn dispatch_get_shared_session() -> RpcResponse {
+    let master_key = std::env::var("FINCEPT_MASTER_KEY").ok();
+    
+    if let Some(key) = master_key {
+        // Return the key directly or wrapped in a structure
+        let response = serde_json::json!({
+            "available": true,
+            "api_key": key
+        });
+        RpcResponse::ok(response)
+    } else {
+        let response = serde_json::json!({
+            "available": false
+        });
+        RpcResponse::ok(response)
     }
 }

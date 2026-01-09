@@ -15,14 +15,18 @@ import { Clock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { TabFooter } from '@/components/common/TabFooter';
 import { useAuth } from '@/contexts/AuthContext';
+import { IS_WEB } from '@/services/invoke';
 
 export default function SettingsTab() {
   const { t } = useTranslation('settings');
-  const { session } = useAuth();
+  const { session, getSharedApiKey, setSharedApiKey, clearSharedApiKey } = useAuth();
   const { theme, updateTheme, resetTheme, colors, fontSize: themeFontSize, fontFamily: themeFontFamily, fontWeight: themeFontWeight, fontStyle } = useTerminalTheme();
   const { defaultTimezone, setDefaultTimezone, options: timezoneOptions } = useTimezone();
   const [activeSection, setActiveSection] = useState<'credentials' | 'polymarket' | 'terminal' | 'terminalConfig' | 'llm' | 'dataConnections' | 'backtesting' | 'language'>('credentials');
   const [apiKeys, setApiKeys] = useState<ApiKeys>({});
+  const [sharedSessionKey, setSharedSessionKey] = useState(() => getSharedApiKey() || '');
+  const [showSharedSessionKey, setShowSharedSessionKey] = useState(false);
+  const [isApplyingSharedKey, setIsApplyingSharedKey] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [dbInitialized, setDbInitialized] = useState(false);
@@ -373,6 +377,31 @@ export default function SettingsTab() {
       setLoading(false);
       setTimeout(() => setMessage(null), 3000);
     }
+  };
+
+  const handleApplySharedSessionKey = async () => {
+    if (!sharedSessionKey.trim()) {
+      setMessage({ type: 'error', text: 'Shared API key is required' });
+      setTimeout(() => setMessage(null), 3000);
+      return;
+    }
+
+    setIsApplyingSharedKey(true);
+    const result = await setSharedApiKey(sharedSessionKey.trim());
+    if (result.success) {
+      setMessage({ type: 'success', text: 'Shared session applied' });
+    } else {
+      setMessage({ type: 'error', text: result.error || 'Failed to apply shared session' });
+    }
+    setIsApplyingSharedKey(false);
+    setTimeout(() => setMessage(null), 3000);
+  };
+
+  const handleClearSharedSessionKey = () => {
+    clearSharedApiKey();
+    setSharedSessionKey('');
+    setMessage({ type: 'success', text: 'Shared session cleared' });
+    setTimeout(() => setMessage(null), 3000);
   };
 
   const loadLLMConfigs = async () => {
@@ -736,8 +765,112 @@ export default function SettingsTab() {
                   </p>
                 </div>
 
-                {/* Predefined API Key Fields */}
                 <div style={{ display: 'grid', gap: '16px' }}>
+                  {IS_WEB && (
+                    <div
+                      style={{
+                        background: colors.panel,
+                        border: '1px solid #1a1a1a',
+                        padding: '16px',
+                        borderRadius: '4px'
+                      }}
+                    >
+                      <h3 style={{ color: colors.primary, fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>
+                        Shared Session (Demo)
+                      </h3>
+                      <p style={{ color: colors.text, fontSize: '9px', marginBottom: '12px', opacity: 0.7 }}>
+                        Use a registered account API key to run a shared terminal session without login.
+                      </p>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '12px', alignItems: 'end' }}>
+                        <div>
+                          <label style={{ color: colors.text, fontSize: '9px', display: 'block', marginBottom: '4px' }}>
+                            Shared API Key
+                          </label>
+                          <div style={{ position: 'relative' }}>
+                            <input
+                              type={showSharedSessionKey ? 'text' : 'password'}
+                              value={sharedSessionKey}
+                              onChange={(e) => setSharedSessionKey(e.target.value)}
+                              placeholder="Paste shared account API key"
+                              style={{
+                                width: '100%',
+                                background: colors.background,
+                                border: '1px solid #2a2a2a',
+                                color: colors.text,
+                                padding: '8px 32px 8px 8px',
+                                fontSize: '10px',
+                                borderRadius: '3px',
+                                fontFamily: 'monospace'
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowSharedSessionKey(!showSharedSessionKey)}
+                              style={{
+                                position: 'absolute',
+                                right: '6px',
+                                top: '50%',
+                                transform: 'translateY(-50%)',
+                                background: 'transparent',
+                                border: 'none',
+                                color: '#666',
+                                cursor: 'pointer',
+                                padding: '2px'
+                              }}
+                            >
+                              {showSharedSessionKey ? <EyeOff size={12} /> : <Eye size={12} />}
+                            </button>
+                          </div>
+                        </div>
+                        <button
+                          onClick={handleApplySharedSessionKey}
+                          disabled={isApplyingSharedKey || !sharedSessionKey}
+                          style={{
+                            background: sharedSessionKey ? colors.primary : '#333',
+                            color: colors.text,
+                            border: 'none',
+                            padding: '8px 14px',
+                            fontSize: '10px',
+                            fontWeight: 'bold',
+                            cursor: (isApplyingSharedKey || !sharedSessionKey) ? 'not-allowed' : 'pointer',
+                            borderRadius: '3px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            opacity: (isApplyingSharedKey || !sharedSessionKey) ? 0.5 : 1,
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          <Save size={14} />
+                          {isApplyingSharedKey ? 'Applying...' : 'Apply'}
+                        </button>
+                        <button
+                          onClick={handleClearSharedSessionKey}
+                          disabled={isApplyingSharedKey}
+                          style={{
+                            background: '#1f1f1f',
+                            color: colors.text,
+                            border: '1px solid #333',
+                            padding: '8px 14px',
+                            fontSize: '10px',
+                            fontWeight: 'bold',
+                            cursor: isApplyingSharedKey ? 'not-allowed' : 'pointer',
+                            borderRadius: '3px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            opacity: isApplyingSharedKey ? 0.5 : 1,
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          <Trash2 size={12} />
+                          Clear
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Predefined API Key Fields */}
                   {PREDEFINED_API_KEYS.map(({ key, label, description }) => (
                     <div
                       key={key}

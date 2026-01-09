@@ -5,6 +5,7 @@
  */
 
 import { IDataObject } from '../types';
+import { invoke } from '@/services/invoke';
 
 // ================================
 // TYPES
@@ -107,6 +108,17 @@ class MarketDataBridgeClass {
       const adapter = await this.getAdapter(provider);
 
       if (!adapter) {
+        // Try backend RPC first before falling back to mock
+        try {
+          console.log(`[MarketDataBridge] Attempting to fetch ${symbol} via backend...`);
+          const backendQuote = await invoke('get_market_quote', { symbol });
+          if (backendQuote) {
+            return this.normalizeQuote(backendQuote, symbol);
+          }
+        } catch (backendError) {
+          console.warn(`[MarketDataBridge] Backend fetch failed for ${symbol}, falling back to mock:`, backendError);
+        }
+
         // Fallback to mock data for development
         return this.getMockQuote(symbol);
       }

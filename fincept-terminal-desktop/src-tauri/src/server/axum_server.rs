@@ -24,7 +24,7 @@ use axum::{
     http::{HeaderValue, Method, Request, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::{get, post, any},
     Json, Router,
 };
 use futures::{SinkExt, StreamExt};
@@ -61,6 +61,7 @@ pub async fn run_server(config: ServerConfig) -> Result<(), Box<dyn std::error::
         .route("/api/rpc", post(rpc_handler))
         .route("/api/health", get(health_handler))
         .route("/api/ready", get(ready_handler))
+        .route("/api/forum/*path", any(forum_handler))
         .route("/", get(index_handler))
         .route("/ws", get(ws_handler))
         .layer(middleware::from_fn_with_state(server_state.clone(), request_logging_middleware))
@@ -398,6 +399,27 @@ async fn health_handler(State(state): State<Arc<ServerState>>) -> impl IntoRespo
         version: env!("CARGO_PKG_VERSION").to_string(),
         uptime_seconds: uptime,
     })
+}
+
+/// Mock Forum API handler
+async fn forum_handler(uri: axum::http::Uri) -> impl IntoResponse {
+    tracing::debug!("Mock Forum API request: {}", uri);
+    // Return empty success response to satisfy the widget
+    // The frontend expects different structures for different endpoints, 
+    // but often wraps them in a success envelope.
+    // tailored for: /api/forum/categories/:id/posts
+    
+    Json(serde_json::json!({
+        "success": true,
+        "data": {
+            "success": true,
+            "categories": [],
+            "posts": [],
+            "results": { "posts": [] },
+            "total_results": 0
+        },
+        "status_code": 200
+    }))
 }
 
 /// Readiness check endpoint - checks if server is ready to serve traffic
