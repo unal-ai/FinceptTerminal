@@ -71,7 +71,10 @@ export const NewsWidget: React.FC<NewsWidgetProps> = ({
       <div style={{ padding: '8px' }}>
         {news.map((article, index) => (
           <div
-            key={article.id}
+            // what: use a composite key to guarantee uniqueness
+            // why: duplicate ids from some feeds were triggering React key collisions
+            // how: append the timestamp and index to the source id
+            key={`${article.id}-${article.time}-${index}`}
             style={{
               marginBottom: '8px',
               paddingBottom: '8px',

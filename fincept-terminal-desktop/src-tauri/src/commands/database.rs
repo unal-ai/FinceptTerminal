@@ -250,6 +250,50 @@ pub async fn db_delete_watchlist(id: String) -> Result<String, String> {
 }
 
 // ============================================================================
+// WebSocket Provider Config Commands
+// ============================================================================
+
+#[tauri::command]
+pub async fn db_get_ws_provider_configs() -> Result<Vec<WSProviderConfig>, String> {
+    // what: expose all websocket provider configs to the frontend
+    // why: replaces stubbed calls so the settings tab can render saved providers
+    // how: delegate to the shared operations module for the actual query
+    operations::get_ws_provider_configs().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn db_get_ws_provider_config(provider_name: String) -> Result<Option<WSProviderConfig>, String> {
+    // what: fetch a single provider config
+    // why: connection flows need the latest credentials for the chosen provider
+    // how: look up by provider_name and bubble errors as strings
+    operations::get_ws_provider_config(&provider_name).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn db_save_ws_provider_config(config: WSProviderConfig) -> Result<OperationResult, String> {
+    // what: add or update a websocket provider config
+    // why: ensures UI edits persist through the Rust backend instead of stalling
+    // how: perform an upsert keyed by provider_name
+    operations::save_ws_provider_config(&config).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn db_delete_ws_provider_config(provider_name: String) -> Result<OperationResult, String> {
+    // what: delete a websocket provider config by name
+    // why: cleans up credentials when the user removes a provider
+    // how: forward to operations and convert any errors
+    operations::delete_ws_provider_config(&provider_name).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn db_toggle_ws_provider_enabled(provider_name: String) -> Result<ToggleResult, String> {
+    // what: toggle the enabled flag for a provider
+    // why: mirrors the UI switch and keeps the backend state authoritative
+    // how: invert the flag in SQLite and return the new state
+    operations::toggle_ws_provider_enabled(&provider_name).map_err(|e| e.to_string())
+}
+
+// ============================================================================
 // Cache Commands
 // ============================================================================
 

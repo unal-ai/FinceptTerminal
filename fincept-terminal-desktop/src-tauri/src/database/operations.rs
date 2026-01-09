@@ -459,6 +459,156 @@ pub fn delete_data_source(id: &str) -> Result<OperationResult> {
 }
 
 // ============================================================================
+// WebSocket Provider Config Operations
+// ============================================================================
+
+pub fn get_ws_provider_configs() -> Result<Vec<WSProviderConfig>> {
+    // what: read all websocket provider configs
+    // why: the settings UI needs persisted providers instead of empty stubs
+    // how: select every row ordered by provider name and map SQLite booleans to Rust bools
+    let pool = get_pool()?;
+    let conn = pool.get()?;
+
+    let mut stmt = conn.prepare(
+        "SELECT id, provider_name, enabled, api_key, api_secret, endpoint, config_data, created_at, updated_at
+         FROM ws_provider_configs ORDER BY provider_name",
+    )?;
+
+    let configs = stmt
+        .query_map([], |row| {
+            Ok(WSProviderConfig {
+                id: row.get(0)?,
+                provider_name: row.get(1)?,
+                enabled: row.get::<_, i32>(2)? != 0,
+                api_key: row.get(3)?,
+                api_secret: row.get(4)?,
+                endpoint: row.get(5)?,
+                config_data: row.get(6)?,
+                created_at: row.get(7)?,
+                updated_at: row.get(8)?,
+            })
+        })?
+        .collect::<std::result::Result<Vec<_>, _>>()?;
+
+    Ok(configs)
+}
+
+pub fn get_ws_provider_config(provider_name: &str) -> Result<Option<WSProviderConfig>> {
+    // what: fetch a single websocket provider config by its unique name
+    // why: connect/disconnect flows require the latest credentials for one provider
+    // how: query by provider_name and surface None when not found
+    let pool = get_pool()?;
+    let conn = pool.get()?;
+
+    let result = conn
+        .query_row(
+            "SELECT id, provider_name, enabled, api_key, api_secret, endpoint, config_data, created_at, updated_at
+             FROM ws_provider_configs WHERE provider_name = ?1",
+            params![provider_name],
+            |row| {
+                Ok(WSProviderConfig {
+                    id: row.get(0)?,
+                    provider_name: row.get(1)?,
+                    enabled: row.get::<_, i32>(2)? != 0,
+                    api_key: row.get(3)?,
+                    api_secret: row.get(4)?,
+                    endpoint: row.get(5)?,
+                    config_data: row.get(6)?,
+                    created_at: row.get(7)?,
+                    updated_at: row.get(8)?,
+                })
+            },
+        )
+        .optional()?;
+
+    Ok(result)
+}
+
+pub fn save_ws_provider_config(config: &WSProviderConfig) -> Result<OperationResult> {
+    // what: upsert a websocket provider config keyed by provider_name
+    // why: allows the UI to add or edit providers while keeping timestamps accurate
+    // how: rely on SQLite's UNIQUE constraint with an ON CONFLICT update and let AUTOINCREMENT handle ids
+    let pool = get_pool()?;
+    let conn = pool.get()?;
+
+    conn.execute(
+        "INSERT INTO ws_provider_configs (provider_name, enabled, api_key, api_secret, endpoint, config_data, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, CURRENT_TIMESTAMP)
+         ON CONFLICT(provider_name) DO UPDATE SET
+           enabled = excluded.enabled,
+           api_key = excluded.api_key,
+           api_secret = excluded.api_secret,
+           endpoint = excluded.endpoint,
+           config_data = excluded.config_data,
+           updated_at = CURRENT_TIMESTAMP",
+        params![
+            config.provider_name,
+            if config.enabled { 1 } else { 0 },
+            config.api_key,
+            config.api_secret,
+            config.endpoint,
+            config.config_data,
+        ],
+    )?;
+
+    Ok(OperationResult {
+        success: true,
+        message: "WebSocket provider saved successfully".to_string(),
+    })
+}
+
+pub fn delete_ws_provider_config(provider_name: &str) -> Result<OperationResult> {
+    // what: remove a websocket provider config by name
+    // why: keeps stale credentials from lingering after the user deletes them
+    // how: delete the row scoped by provider_name and return a simple status
+    let pool = get_pool()?;
+    let conn = pool.get()?;
+
+    conn.execute(
+        "DELETE FROM ws_provider_configs WHERE provider_name = ?1",
+        params![provider_name],
+    )?;
+
+    Ok(OperationResult {
+        success: true,
+        message: "WebSocket provider deleted successfully".to_string(),
+    })
+}
+
+pub fn toggle_ws_provider_enabled(provider_name: &str) -> Result<ToggleResult> {
+    // what: flip the enabled flag for a provider
+    // why: mirrors the UI toggle so the backend knows which providers are active
+    // how: read the current value, invert it, persist, and return the new state
+    let pool = get_pool()?;
+    let conn = pool.get()?;
+
+    let current_enabled: bool = conn
+        .query_row(
+            "SELECT enabled FROM ws_provider_configs WHERE provider_name = ?1",
+            params![provider_name],
+            |row| Ok(row.get::<_, i32>(0)? != 0),
+        )
+        .optional()?
+        .unwrap_or(false);
+
+    let new_enabled = !current_enabled;
+
+    conn.execute(
+        "UPDATE ws_provider_configs SET enabled = ?1, updated_at = CURRENT_TIMESTAMP WHERE provider_name = ?2",
+        params![if new_enabled { 1 } else { 0 }, provider_name],
+    )?;
+
+    Ok(ToggleResult {
+        success: true,
+        message: format!(
+            "WebSocket provider {}",
+            if new_enabled { "enabled" } else { "disabled" }
+        ),
+        enabled: new_enabled,
+    })
+}
+
+// ============================================================================
 // Portfolio Operations
 // ============================================================================
 
