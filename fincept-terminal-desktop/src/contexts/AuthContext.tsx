@@ -249,13 +249,6 @@ const removeSharedApiKeyFromStorage = () => {
   }
 };
 
-const clearSharedApiKey = () => {
-  // what: public wrapper that aligns with existing context API
-  // why: preserve backwards compatibility while reusing the storage helper
-  // how: delegate to removeSharedApiKeyFromStorage
-  removeSharedApiKeyFromStorage();
-};
-
 const loadSession = (): SessionData | null => {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);

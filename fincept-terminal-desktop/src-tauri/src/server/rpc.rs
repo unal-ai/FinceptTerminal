@@ -33,6 +33,8 @@ pub async fn dispatch(state: Arc<ServerState>, request: RpcRequest) -> RpcRespon
         "get_stock_info" => dispatch_stock_info(args).await,
         "get_financials" => dispatch_financials(args).await,
         "db_get_cached_market_data" => dispatch_db_get_cached_market_data(args).await,
+        "db_save_market_data_cache" => dispatch_db_save_market_data_cache(args).await,
+        "db_clear_market_data_cache" => dispatch_db_clear_market_data_cache().await,
 
         // NEWS COMMANDS
         "fetch_all_rss_news" => dispatch_fetch_all_rss_news().await,
