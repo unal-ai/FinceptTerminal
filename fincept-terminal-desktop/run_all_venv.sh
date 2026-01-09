@@ -58,17 +58,17 @@ if ! mamba info --envs | grep -q "$ENV_NAME"; then
     if [ "$OS" = "Darwin" ]; then
         echo -e "${BLUE}🍎 macOS detected. Installing Python 3.12 + Playwright...${NC}"
         # macOS Conda doesn't have webkit2gtk, but Playwright manages its own browsers
-        mamba create -n "$ENV_NAME" python=3.12 playwright -c conda-forge -y
+        mamba create -n "$ENV_NAME" python=3.12 playwright rust compilers -c conda-forge -y
     else
         # Linux / Other
         if [ -f "$ENV_FILE" ]; then
             echo -e "${BLUE}🐧 Linux/other detected. Installing from $ENV_FILE...${NC}"
-            mamba create -n "$ENV_NAME" -f "$ENV_FILE" -y
+            mamba create -n "$ENV_NAME" -f "$ENV_FILE" -y || mamba create -n "$ENV_NAME" python=3.12 playwright rust compilers -c conda-forge -y
             # We might need to inject playwright if it's not in the file, but for now assuming default path:
             mamba install -n "$ENV_NAME" playwright -c conda-forge -y
         else
             echo -e "${BLUE}⚠️  Environment file not found. Installing default Linux dependencies...${NC}"
-            mamba create -n "$ENV_NAME" -c conda-forge glib gtk3 webkit2gtk4.1 librsvg patchelf python=3.12 playwright -y
+            mamba create -n "$ENV_NAME" -c conda-forge glib gtk3 webkit2gtk4.1 librsvg patchelf python=3.12 playwright rust compilers -y
         fi
     fi
 else
@@ -84,6 +84,39 @@ eval "$(mamba shell.bash hook 2>/dev/null || conda shell.bash hook)"
 conda activate "$ENV_NAME"
 
 echo -e "${GREEN}✅ Active Environment: $CONDA_PREFIX${NC}"
+
+
+# Force check for Rust installation (needed even for existing environments)
+if ! command -v cargo &> /dev/null; then
+    echo -e "${BLUE}🦀 Cargo not found. Installing Rust and compilers in environment...${NC}"
+    mamba install rust compilers -c conda-forge -y
+else
+    echo -e "${GREEN}✅ Rust toolchain detected.${NC}"
+fi
+
+# Force check for Bun installation
+if ! command -v bun &> /dev/null; then
+    echo -e "${BLUE}🍞 Bun not found. Installing via npm...${NC}"
+    # Ensure npm is installed first
+    if ! command -v npm &> /dev/null; then
+         mamba install nodejs -c conda-forge -y
+    fi
+    npm install -g bun
+    echo -e "${GREEN}✅ Bun installed.${NC}"
+else
+    echo -e "${GREEN}✅ Bun detected.${NC}"
+fi
+
+# Install Frontend Dependencies
+if [ ! -d "node_modules" ] || [ ! -f "bun.lockb" ]; then
+    echo -e "${BLUE}📦 Installing frontend dependencies with Bun...${NC}"
+    bun install
+    echo -e "${GREEN}✅ Frontend dependencies installed.${NC}"
+else
+    echo -e "${GREEN}✅ Frontend dependencies found (node_modules present).${NC}"
+    # Optional: could run 'bun install' anyway to ensure sync, but checking folder is faster for typical runs
+    # To force update: rm -rf node_modules
+fi
 
 # Install essential Python dependencies for the backend
 REQUIREMENTS_FILE="src-tauri/resources/requirements-numpy2.txt"

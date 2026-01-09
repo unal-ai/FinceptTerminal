@@ -20,9 +20,18 @@ State-of-the-art financial intelligence platform with CFA-level analytics, AI au
 
 [📥 Download](https://github.com/Fincept-Corporation/FinceptTerminal/releases) • [📚 Docs](https://github.com/Fincept-Corporation/FinceptTerminal/tree/main/docs) • [💬 Discussions](https://github.com/Fincept-Corporation/FinceptTerminal/discussions) • [💬 Discord](https://discord.gg/ae87a8ygbN)
 
-![Fincept Terminal](https://raw.githubusercontent.com/Fincept-Corporation/FinceptTerminal/main/images/Geopolitics.png)
+![Fincept Terminal](https://raw.githubusercontent.com/unal-ai/FinceptTerminal/main/images/Dashboard.png)
 
 </div>
+
+### **🌐 Flexible Deployment: Desktop & Web**
+
+> **Note:** This version is an **adaptation** of the official Fincept Terminal, modified to enable headless server deployment and web-based access while preserving the original desktop power.
+
+Fincept Terminal now supports **headless server deployment**, allowing you to run the powerful backend on a workstation while accessing the full professional interface from any browser—perfect for:
+- **Large Screen Demos**: Cast to 4K/8K displays for boardrooms and war rooms.
+- **Multi-Device Access**: Trade and monitor from your iPad, tablet, or laptop.
+- **Automated Operations**: Run agents 24/7 on a server without a GUI.
 
 ---
 
@@ -70,7 +79,7 @@ State-of-the-art financial intelligence platform with CFA-level analytics, AI au
 
 ### **📊 CFA-Level Analytics**
 
-![Dashboard](https://raw.githubusercontent.com/Fincept-Corporation/FinceptTerminal/main/images/Dashboard.png)
+![Dashboard](https://raw.githubusercontent.com/unal-ai/FinceptTerminal/main/images/Dashboard.png)
 
 **Portfolio Management**
 - Sharpe ratio, VaR (95%), max drawdown
@@ -191,6 +200,12 @@ Maritime Intelligence → Commodity Prices → Macro Strategies
 git clone https://github.com/Fincept-Corporation/FinceptTerminal.git
 cd FinceptTerminal/fincept-terminal-desktop
 bun install && bun run tauri:dev
+```
+
+**Quick Start (Web Mode):**
+To run the full web environment with automatic dependency management (Rust + Python):
+```bash
+./fincept-terminal-desktop/run_all_venv.sh
 ```
 
 **Requirements:**
