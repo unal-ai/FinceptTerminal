@@ -212,6 +212,14 @@ const saveSession = (session: SessionData) => {
   }
 };
 
+// What: Saves shared API key to localStorage
+// Why: Persist shared API key for web kiosk mode across page reloads
+// How: Store API key in localStorage with error handling
+// Security: API keys are stored in plain text in localStorage. This is acceptable
+//           for the intended kiosk/demo mode use case, but be aware that:
+//           - Keys are vulnerable to XSS attacks
+//           - Keys persist in browser storage until explicitly cleared
+//           - Only use this feature in trusted environments
 const saveSharedApiKey = (apiKey: string) => {
   try {
     localStorage.setItem(SHARED_API_KEY_STORAGE_KEY, apiKey);
@@ -229,7 +237,11 @@ const loadSharedApiKey = (): string | null => {
   }
 };
 
-const clearSharedApiKey = () => {
+// Utility function to remove shared API key from storage
+// What: Removes the shared API key from localStorage
+// Why: Need a utility to clear stored API key without affecting session state
+// How: Uses localStorage.removeItem with error handling
+const removeSharedApiKeyFromStorage = () => {
   try {
     localStorage.removeItem(SHARED_API_KEY_STORAGE_KEY);
   } catch (error) {
@@ -452,7 +464,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             saveSession(validatedSession);
             localSessionValid = true;
           } else {
-            clearSharedApiKey();
+            removeSharedApiKeyFromStorage();
             clearSession();
           }
         }
@@ -483,7 +495,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const sharedSession = await checkSharedSession();
           if (sharedSession) {
             setSession(sharedSession);
-            // We don't save share session to local storage to ensure 
+            // We don't save shared session to local storage to ensure 
             // it re-validates against backend config on every restart
           }
         }
@@ -944,11 +956,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return { success: true };
       }
 
-      clearSharedApiKey();
+      removeSharedApiKeyFromStorage();
       clearSession();
       return { success: false, error: 'Invalid API key' };
     } catch (error) {
-      clearSharedApiKey();
+      removeSharedApiKeyFromStorage();
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to apply shared session'
@@ -956,12 +968,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  // What: Clears the shared API key session
+  // Why: In web mode, clearing shared session should also clear all session state
+  //      In desktop mode, only remove the API key from storage
+  // How: Check IS_WEB flag and conditionally clear session state
   const clearSharedApiKeySession = () => {
     if (!IS_WEB) {
-      clearSharedApiKey();
+      // Desktop mode: only clear the stored API key
+      removeSharedApiKeyFromStorage();
       return;
     }
-    clearSharedApiKey();
+    // Web mode: clear API key and all session state
+    removeSharedApiKeyFromStorage();
     setSession(null);
     clearSession();
     setIsFirstTimeUser(checkIsFirstTimeUser());

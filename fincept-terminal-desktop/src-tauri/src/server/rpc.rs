@@ -2384,6 +2384,32 @@ async fn dispatch_ws_reconnect(state: &crate::WebSocketState, args: Value) -> Rp
     }
 }
 
+// What: RPC handler to retrieve shared session API key from environment
+// Why: Enables web kiosk mode by exposing FINCEPT_MASTER_KEY to frontend
+// How: Reads FINCEPT_MASTER_KEY env var and returns availability status + key
+// Security: This endpoint has no authentication/authorization checks.
+//           Any code that can call this RPC method can retrieve the API key.
+//           This is intentional for kiosk mode but should be used only in
+//           trusted environments. Consider adding authentication or logging
+//           for production deployments.
+async fn dispatch_get_shared_session() -> RpcResponse {
+    let master_key = std::env::var("FINCEPT_MASTER_KEY").ok();
+    
+    if let Some(key) = master_key {
+        // Return the key directly or wrapped in a structure
+        let response = serde_json::json!({
+            "available": true,
+            "api_key": key
+        });
+        RpcResponse::ok(response)
+    } else {
+        let response = serde_json::json!({
+            "available": false
+        });
+        RpcResponse::ok(response)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2872,23 +2898,5 @@ mod tests {
         
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), 42);
-    }
-}
-
-async fn dispatch_get_shared_session() -> RpcResponse {
-    let master_key = std::env::var("FINCEPT_MASTER_KEY").ok();
-    
-    if let Some(key) = master_key {
-        // Return the key directly or wrapped in a structure
-        let response = serde_json::json!({
-            "available": true,
-            "api_key": key
-        });
-        RpcResponse::ok(response)
-    } else {
-        let response = serde_json::json!({
-            "available": false
-        });
-        RpcResponse::ok(response)
     }
 }
