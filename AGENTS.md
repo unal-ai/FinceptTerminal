@@ -15,6 +15,37 @@ Before completing any task or merge:
 
 If you cannot verify (e.g., missing dependencies, environment issues), explicitly state this limitation to the user rather than submitting untested changes.
 
+## ⚠️ Environment & Dependencies
+
+**DO NOT use `apt-get` or `sudo` to install system libraries.**
+Docker environments and CI often lack root access or have incompatible system libraries. Instead, use the project's bootstrapping script which handles cross-platform dependencies (macOS/Linux) via Conda/Mamba:
+
+```bash
+cd fincept-terminal-desktop
+./run_all_venv.sh
+```
+
+This script automatically:
+1.  **Installs Miniforge** if Conda is missing.
+2.  **Creates the `fincept-dev` environment** with the correct packages (`glib`, `gtk3`, `python-3.12`, etc.) for the current OS.
+3.  **Configures Library Paths**: Sets `DYLD_LIBRARY_PATH` / `LD_LIBRARY_PATH` to fix runtime linking errors.
+4.  **Launches the App**: Starts the Backend and Frontend in the correct order.
+
+## Headless Smoke Testing
+
+To verify the application stack (Backend + Frontend) without a GUI (e.g., for agents to verify their work):
+
+```bash
+cd fincept-terminal-desktop
+./run_headless_test.sh
+```
+
+This script will:
+1.  Bootstrap the environment (installing `playwright` if needed).
+2.  Start the web server in the background.
+3.  Run a headless browser test to capture the page title and console logs.
+4.  Clean up all processes automatically.
+
 ---
 
 ## Critical Rules for Code Modifications

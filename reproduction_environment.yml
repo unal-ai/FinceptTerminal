@@ -1,0 +1,9 @@
+name: test_proof
+channels:
+  - conda-forge
+dependencies:
+  - glib
+  - gtk3
+  - webkit2gtk4.1
+  - librsvg
+  - patchelf
