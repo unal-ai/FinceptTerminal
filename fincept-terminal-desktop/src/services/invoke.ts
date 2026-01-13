@@ -37,31 +37,88 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
   }
 }
 
+// Configuration for kiosk/big-screen mode reliability
+const FETCH_TIMEOUT_MS = 30000; // 30 seconds timeout
+const MAX_RETRIES = 5;
+const INITIAL_RETRY_DELAY_MS = 1000; // 1 second
+const MAX_RETRY_DELAY_MS = 30000; // 30 seconds max backoff
+
 /**
- * Web-mode invoke using HTTP fetch
+ * Sleep helper for retry delays
+ */
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Web-mode invoke using HTTP fetch with timeout and automatic retry
+ * Designed for kiosk/big-screen mode - keeps retrying on failure
  */
 async function invokeWeb<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
-  const response = await fetch(`${API_BASE}/rpc`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ cmd, args }),
-  });
+  let lastError: Error | null = null;
 
-  if (!response.ok) {
-    throw new Error(`RPC call failed: ${response.status} ${response.statusText}`);
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(`${API_BASE}/rpc`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ cmd, args }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`RPC call failed: ${response.status} ${response.statusText}`);
+      }
+
+      const result = await response.json();
+
+      // Handle RPC response format - throw on explicit error or failed success flag
+      if (result.error || result.success === false) {
+        throw new Error(result.error || 'Unknown error');
+      }
+
+      // Return the data if it exists, otherwise return the whole result
+      return result.data !== undefined ? result.data : result;
+
+    } catch (error) {
+      clearTimeout(timeoutId);
+      lastError = error instanceof Error ? error : new Error(String(error));
+
+      // Check if it's an abort (timeout) or network error - these should retry
+      const isRetryable =
+        error instanceof Error && (
+          error.name === 'AbortError' ||
+          error.message.includes('Failed to fetch') ||
+          error.message.includes('NetworkError') ||
+          error.message.includes('RPC call failed: 5') // 5xx server errors
+        );
+
+      if (attempt < MAX_RETRIES && isRetryable) {
+        // Exponential backoff with jitter
+        const delay = Math.min(
+          INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt) + Math.random() * 1000,
+          MAX_RETRY_DELAY_MS
+        );
+        console.warn(`[RPC] ${cmd} failed (attempt ${attempt + 1}/${MAX_RETRIES + 1}), retrying in ${Math.round(delay / 1000)}s...`);
+        await sleep(delay);
+        continue;
+      }
+
+      // Non-retryable error or max retries exceeded
+      if (attempt === MAX_RETRIES) {
+        console.error(`[RPC] ${cmd} failed after ${MAX_RETRIES + 1} attempts:`, lastError?.message);
+      }
+      throw lastError;
+    }
   }
 
-  const result = await response.json();
-  
-  // Handle RPC response format - throw on explicit error or failed success flag
-  if (result.error || result.success === false) {
-    throw new Error(result.error || 'Unknown error');
-  }
-
-  // Return the data if it exists, otherwise return the whole result
-  return result.data !== undefined ? result.data : result;
+  // Should never reach here, but TypeScript needs it
+  throw lastError || new Error('Unknown error in invokeWeb');
 }
 
 /**
@@ -69,132 +126,132 @@ async function invokeWeb<T>(cmd: string, args: Record<string, unknown>): Promise
  */
 export const commands = {
   // Market Data Commands
-  getMarketQuote: (symbol: string) => 
+  getMarketQuote: (symbol: string) =>
     invoke<MarketQuoteResponse>('get_market_quote', { symbol }),
-  
-  getMarketQuotes: (symbols: string[]) => 
+
+  getMarketQuotes: (symbols: string[]) =>
     invoke<MarketQuotesResponse>('get_market_quotes', { symbols }),
-  
+
   getHistoricalData: (symbol: string, startDate: string, endDate: string) =>
     invoke<HistoricalResponse>('get_historical_data', { symbol, startDate, endDate }),
-  
+
   getStockInfo: (symbol: string) =>
     invoke<StockInfoResponse>('get_stock_info', { symbol }),
-  
+
   getFinancials: (symbol: string) =>
     invoke<FinancialsResponse>('get_financials', { symbol }),
-  
+
   getPeriodReturns: (symbol: string) =>
     invoke<PeriodReturnsResponse>('get_period_returns', { symbol }),
-  
+
   checkMarketDataHealth: () =>
     invoke<boolean>('check_market_data_health', {}),
-  
+
   // Database Commands
   dbCheckHealth: () =>
     invoke<HealthCheckResponse>('db_check_health', {}),
-  
+
   dbGetAllSettings: () =>
     invoke<Setting[]>('db_get_all_settings', {}),
-  
+
   dbGetSetting: (key: string) =>
     invoke<string | null>('db_get_setting', { key }),
-  
+
   dbSaveSetting: (key: string, value: string, category?: string) =>
     invoke<{ saved: boolean }>('db_save_setting', { key, value, category }),
-  
+
   // Watchlist Commands
   dbGetWatchlists: () =>
     invoke<Watchlist[]>('db_get_watchlists', {}),
-  
+
   dbCreateWatchlist: (name: string, description?: string, color?: string) =>
     invoke<Watchlist>('db_create_watchlist', { name, description, color }),
-  
+
   dbGetWatchlistStocks: (watchlistId: string) =>
     invoke<WatchlistStock[]>('db_get_watchlist_stocks', { watchlistId }),
-  
+
   dbAddWatchlistStock: (watchlistId: string, symbol: string, notes?: string) =>
     invoke<WatchlistStock>('db_add_watchlist_stock', { watchlistId, symbol, notes }),
-  
+
   dbRemoveWatchlistStock: (watchlistId: string, symbol: string) =>
     invoke<{ removed: boolean }>('db_remove_watchlist_stock', { watchlistId, symbol }),
-  
+
   dbDeleteWatchlist: (watchlistId: string) =>
     invoke<{ deleted: boolean }>('db_delete_watchlist', { watchlistId }),
-  
+
   // Credential Commands
   dbGetCredentials: () =>
     invoke<Credential[]>('db_get_credentials', {}),
-  
+
   dbSaveCredential: (credential: Credential) =>
     invoke<{ success: boolean; message: string }>('db_save_credential', credential),
-  
+
   dbGetCredentialByService: (serviceName: string) =>
     invoke<Credential | null>('db_get_credential_by_service', { serviceName }),
-  
+
   dbDeleteCredential: (id: number) =>
     invoke<{ success: boolean; message: string }>('db_delete_credential', { id }),
-  
+
   // LLM Config Commands
   dbGetLlmConfigs: () =>
     invoke<LlmConfig[]>('db_get_llm_configs', {}),
-  
+
   dbSaveLlmConfig: (config: LlmConfig) =>
     invoke<{ saved: boolean }>('db_save_llm_config', config),
-  
+
   dbGetLlmGlobalSettings: () =>
     invoke<LlmGlobalSettings>('db_get_llm_global_settings', {}),
-  
+
   dbSaveLlmGlobalSettings: (settings: LlmGlobalSettings) =>
     invoke<{ saved: boolean }>('db_save_llm_global_settings', settings),
-  
+
   // Chat Session Commands
   dbCreateChatSession: (title: string) =>
     invoke<ChatSession>('db_create_chat_session', { title }),
-  
+
   dbGetChatSessions: (limit?: number) =>
     invoke<ChatSession[]>('db_get_chat_sessions', { limit }),
-  
+
   dbAddChatMessage: (message: ChatMessage) =>
     invoke<ChatMessage>('db_add_chat_message', message),
-  
+
   dbGetChatMessages: (sessionUuid: string) =>
     invoke<ChatMessage[]>('db_get_chat_messages', { sessionUuid }),
-  
+
   dbDeleteChatSession: (sessionUuid: string) =>
     invoke<{ deleted: boolean }>('db_delete_chat_session', { sessionUuid }),
-  
+
   // Data Source Commands
   dbGetAllDataSources: () =>
     invoke<DataSource[]>('db_get_all_data_sources', {}),
-  
+
   dbSaveDataSource: (source: DataSource) =>
     invoke<{ success: boolean; message: string; id?: string }>('db_save_data_source', source),
-  
+
   dbDeleteDataSource: (id: string) =>
     invoke<{ success: boolean; message: string }>('db_delete_data_source', { id }),
-  
+
   // Portfolio Commands
   dbListPortfolios: () =>
     invoke<Portfolio[]>('db_list_portfolios', {}),
-  
+
   dbGetPortfolio: (portfolioId: string) =>
     invoke<Portfolio | null>('db_get_portfolio', { portfolioId }),
-  
+
   dbCreatePortfolio: (name: string, currency?: string, description?: string) =>
     invoke<{ id: string; created: boolean }>('db_create_portfolio', { name, currency, description }),
-  
+
   dbDeletePortfolio: (portfolioId: string) =>
     invoke<{ deleted: boolean }>('db_delete_portfolio', { portfolioId }),
-  
+
   // Setup Commands
   checkSetupStatus: () =>
     invoke<SetupStatus>('check_setup_status', {}),
-  
+
   // Utility Commands
   greet: (name: string) =>
     invoke<string>('greet', { name }),
-  
+
   sha256Hash: (input: string) =>
     invoke<string>('sha256_hash', { input }),
 };
@@ -407,7 +464,7 @@ export async function listen<T>(
   } else {
     // In web mode, return no-op (events should be handled via WebSocket/SSE)
     console.warn(`[Web Mode] Event listener for '${event}' is not available. Use WebSocket for real-time updates.`);
-    return () => {}; // No-op unlisten function
+    return () => { }; // No-op unlisten function
   }
 }
 
@@ -565,7 +622,7 @@ export async function openDialog(options?: OpenDialogOptions): Promise<string | 
       if (options?.filters?.length) {
         input.accept = options.filters.flatMap(f => f.extensions.map(e => `.${e}`)).join(',');
       }
-      
+
       // Handle cancel - browsers fire focus event when file dialog is cancelled
       // Use a 300ms delay to allow onchange to fire first if a file was selected
       // (This delay accounts for the browser's internal event processing)
@@ -578,7 +635,7 @@ export async function openDialog(options?: OpenDialogOptions): Promise<string | 
         }, 300);
       };
       window.addEventListener('focus', handleCancel, { once: true });
-      
+
       input.onchange = () => {
         resolved = true;
         if (input.files?.length) {
@@ -588,7 +645,7 @@ export async function openDialog(options?: OpenDialogOptions): Promise<string | 
           resolve(null);
         }
       };
-      
+
       input.click();
     });
   }

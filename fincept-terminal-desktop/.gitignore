@@ -1,1 +1,4 @@
 src-tauri/lean_projects/
+
+# Application logs
+logs/
