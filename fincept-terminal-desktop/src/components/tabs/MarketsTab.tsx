@@ -8,6 +8,7 @@ import { contextRecorderService } from '../../services/contextRecorderService';
 import TickerEditModal from './TickerEditModal';
 import RecordingControlPanel from '../common/RecordingControlPanel';
 import { TabFooter } from '@/components/common/TabFooter';
+import { TimezoneSelector } from '@/components/common/TimezoneSelector';
 import { useTranslation } from 'react-i18next';
 
 const MarketsTab: React.FC = () => {
@@ -481,9 +482,7 @@ const MarketsTab: React.FC = () => {
         <span style={{ color: colors.primary, fontWeight: 'bold' }}>FINCEPT</span>
         <span style={{ color: colors.text }}>{t('marketTerminalLive')}</span>
         <span style={{ color: colors.textMuted }}>|</span>
-        <span style={{ color: colors.text, fontSize: '11px' }}>
-          {currentTime.toISOString().replace('T', ' ').substring(0, 19)}
-        </span>
+        <TimezoneSelector compact />
       </div>
 
       {/* Control Panel */}

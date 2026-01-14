@@ -6,6 +6,7 @@ import { useTerminalTheme } from '@/contexts/ThemeContext';
 import { useTranslation } from 'react-i18next';
 import { sqliteService } from '../../services/sqliteService';
 import { TabFooter } from '@/components/common/TabFooter';
+import { TimezoneSelector } from '@/components/common/TimezoneSelector';
 import {
   NewsWidget,
   MarketDataWidget,
@@ -466,9 +467,7 @@ const DashboardTab: React.FC<DashboardTabProps> = ({ onNavigateToTab }) => {
                 ● {t('header.live')}
               </span>
               <span style={{ color: colors.text }}>|</span>
-              <span style={{ color: colors.warning, fontSize: fontSize.body }}>
-                {currentTime.toISOString().replace('T', ' ').substring(0, 19)} UTC
-              </span>
+              <TimezoneSelector compact />
               <span style={{ color: colors.text }}>|</span>
               <span style={{ color: colors.textMuted, fontSize: fontSize.small }}>
                 {t('header.widgets')}: {widgets.length}
