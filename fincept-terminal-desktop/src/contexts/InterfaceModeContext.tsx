@@ -3,7 +3,7 @@
 
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
-export type InterfaceMode = 'terminal' | 'chat';
+export type InterfaceMode = 'terminal' | 'chat' | 'war-room';
 
 interface InterfaceModeContextType {
   mode: InterfaceMode;
@@ -29,7 +29,10 @@ export const InterfaceModeProvider: React.FC<InterfaceModeProviderProps> = ({ ch
   const [mode, setMode] = useState<InterfaceMode>('terminal');
 
   const toggleMode = () => {
-    setMode(prev => prev === 'terminal' ? 'chat' : 'terminal');
+    setMode(prev => {
+      if (prev === 'war-room') return 'terminal';
+      return prev === 'terminal' ? 'chat' : 'terminal';
+    });
   };
 
   return (

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import GridLayout, { Layout } from 'react-grid-layout';
 import { Plus, RotateCcw, Save } from 'lucide-react';
+import { useInterfaceMode } from '@/contexts/InterfaceModeContext';
 import { useTerminalTheme } from '@/contexts/ThemeContext';
 import { useTranslation } from 'react-i18next';
 import { sqliteService } from '../../services/sqliteService';
@@ -72,13 +73,13 @@ const DEFAULT_LAYOUT: WidgetInstance[] = [
     config: { newsCategory: 'CRYPTO', newsLimit: 5 },
     layout: { i: 'news-3', x: 9, y: 5, w: 3, h: 4, minW: 2, minH: 3 }
   },
-  // Row 3 - Forum, Maritime Intelligence, and Tech Stocks
+  // Row 3 - Crypto, Maritime Intelligence, and Tech Stocks
   {
-    id: 'forum-1',
-    type: 'forum',
-    title: 'Trending Forum Posts',
-    config: { forumCategoryName: 'Trending', forumLimit: 5 },
-    layout: { i: 'forum-1', x: 0, y: 9, w: 4, h: 4, minW: 2, minH: 3 }
+    id: 'crypto-1',
+    type: 'crypto',
+    title: 'Cryptocurrency',
+    config: {},
+    layout: { i: 'crypto-1', x: 0, y: 9, w: 4, h: 4, minW: 2, minH: 3 }
   },
   {
     id: 'maritime-1',
@@ -104,6 +105,7 @@ interface DashboardTabProps {
 
 const DashboardTab: React.FC<DashboardTabProps> = ({ onNavigateToTab }) => {
   const { colors, fontSize, fontFamily, fontStyle, fontWeight } = useTerminalTheme();
+  const { setMode, mode } = useInterfaceMode();
   const { t } = useTranslation('dashboard');
   const [widgets, setWidgets] = useState<WidgetInstance[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -447,109 +449,113 @@ const DashboardTab: React.FC<DashboardTabProps> = ({ onNavigateToTab }) => {
       `}</style>
 
       {/* Header Bar */}
-      <div style={{
-        backgroundColor: colors.panel,
-        borderBottom: `1px solid ${colors.textMuted}`,
-        padding: '8px 12px',
-        flexShrink: 0
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span style={{ color: colors.primary, fontWeight: 'bold', fontSize: fontSize.subheading }}>
-              {t('header.title')}
-            </span>
-            <span style={{ color: colors.text }}>|</span>
-            <span style={{ color: colors.secondary, fontSize: fontSize.small }}>
-              ● {t('header.live')}
-            </span>
-            <span style={{ color: colors.text }}>|</span>
-            <span style={{ color: colors.warning, fontSize: fontSize.body }}>
-              {currentTime.toISOString().replace('T', ' ').substring(0, 19)} UTC
-            </span>
-            <span style={{ color: colors.text }}>|</span>
-            <span style={{ color: colors.textMuted, fontSize: fontSize.small }}>
-              {t('header.widgets')}: {widgets.length}
-            </span>
-          </div>
+      {mode !== 'war-room' && (
+        <div style={{
+          backgroundColor: colors.panel,
+          borderBottom: `1px solid ${colors.textMuted}`,
+          padding: '8px 12px',
+          flexShrink: 0
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span style={{ color: colors.primary, fontWeight: 'bold', fontSize: fontSize.subheading }}>
+                {t('header.title')}
+              </span>
+              <span style={{ color: colors.text }}>|</span>
+              <span style={{ color: colors.secondary, fontSize: fontSize.small }}>
+                ● {t('header.live')}
+              </span>
+              <span style={{ color: colors.text }}>|</span>
+              <span style={{ color: colors.warning, fontSize: fontSize.body }}>
+                {currentTime.toISOString().replace('T', ' ').substring(0, 19)} UTC
+              </span>
+              <span style={{ color: colors.text }}>|</span>
+              <span style={{ color: colors.textMuted, fontSize: fontSize.small }}>
+                {t('header.widgets')}: {widgets.length}
+              </span>
+            </div>
 
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button
-              onClick={() => setShowAddModal(true)}
-              style={{
-                background: colors.secondary,
-                color: 'black',
-                border: 'none',
-                padding: '6px 12px',
-                fontSize: fontSize.small,
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                borderRadius: '2px'
-              }}
-            >
-              <Plus size={12} />
-              {t('buttons.addWidget')}
-            </button>
-            <button
-              onClick={saveLayout}
-              style={{
-                background: colors.primary,
-                color: 'black',
-                border: 'none',
-                padding: '6px 12px',
-                fontSize: fontSize.small,
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                borderRadius: '2px'
-              }}
-            >
-              <Save size={12} />
-              {t('buttons.saveLayout')}
-            </button>
-            <button
-              onClick={resetLayout}
-              style={{
-                background: colors.textMuted,
-                color: 'black',
-                border: 'none',
-                padding: '6px 12px',
-                fontSize: fontSize.small,
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                borderRadius: '2px'
-              }}
-            >
-              <RotateCcw size={12} />
-              {t('buttons.reset')}
-            </button>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => setShowAddModal(true)}
+                style={{
+                  background: colors.secondary,
+                  color: 'black',
+                  border: 'none',
+                  padding: '6px 12px',
+                  fontSize: fontSize.small,
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  borderRadius: '2px'
+                }}
+              >
+                <Plus size={12} />
+                {t('buttons.addWidget')}
+              </button>
+              <button
+                onClick={saveLayout}
+                style={{
+                  background: colors.primary,
+                  color: 'black',
+                  border: 'none',
+                  padding: '6px 12px',
+                  fontSize: fontSize.small,
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  borderRadius: '2px'
+                }}
+              >
+                <Save size={12} />
+                {t('buttons.saveLayout')}
+              </button>
+              <button
+                onClick={resetLayout}
+                style={{
+                  background: colors.textMuted,
+                  color: 'black',
+                  border: 'none',
+                  padding: '6px 12px',
+                  fontSize: fontSize.small,
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  borderRadius: '2px'
+                }}
+              >
+                <RotateCcw size={12} />
+                {t('buttons.reset')}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Info Bar */}
-      <div style={{
-        backgroundColor: colors.panel,
-        borderBottom: `1px solid ${colors.textMuted}`,
-        padding: '4px 12px',
-        fontSize: fontSize.small,
-        color: colors.textMuted,
-        flexShrink: 0
-      }}>
-        <div style={{ display: 'flex', gap: '16px' }}>
-          <span>💡 <span style={{ color: colors.text }}>{t('tips.drag')}</span></span>
-          <span>🔧 <span style={{ color: colors.text }}>{t('tips.resize')}</span></span>
-          <span>✖️ <span style={{ color: colors.text }}>{t('tips.remove')}</span></span>
-          <span>📐 <span style={{ color: colors.text }}>{t('tips.responsive')}</span></span>
+      {mode !== 'war-room' && (
+        <div style={{
+          backgroundColor: colors.panel,
+          borderBottom: `1px solid ${colors.textMuted}`,
+          padding: '4px 12px',
+          fontSize: fontSize.small,
+          color: colors.textMuted,
+          flexShrink: 0
+        }}>
+          <div style={{ display: 'flex', gap: '16px' }}>
+            <span>💡 <span style={{ color: colors.text }}>{t('tips.drag')}</span></span>
+            <span>🔧 <span style={{ color: colors.text }}>{t('tips.resize')}</span></span>
+            <span>✖️ <span style={{ color: colors.text }}>{t('tips.remove')}</span></span>
+            <span>📐 <span style={{ color: colors.text }}>{t('tips.responsive')}</span></span>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Main Content - Grid Layout */}
       <div
@@ -628,6 +634,20 @@ const DashboardTab: React.FC<DashboardTabProps> = ({ onNavigateToTab }) => {
                 | {t('status.cache')}
               </span>
             )}
+            <span style={{ marginLeft: '8px', color: colors.textMuted }}>|</span>
+            <span
+              onClick={() => setMode('war-room')}
+              style={{
+                marginLeft: '8px',
+                color: colors.primary,
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                textDecoration: 'underline'
+              }}
+              title="Enter War Room Mode (Alt+W)"
+            >
+              [ WAR ROOM ]
+            </span>
           </>
         }
         backgroundColor={colors.panel}

@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { CommandBar } from '@/components/command-bar';
+import { WarRoomMode } from './WarRoomMode';
 import { IS_WEB } from '@/services/invoke';
 
 // Eagerly loaded tabs (needed immediately)
@@ -204,7 +205,7 @@ function FinxeptTerminalContent() {
   const { t } = useTranslation('tabs');
   const { session, logout } = useAuth();
   const navigation = useNavigation();
-  const { mode, toggleMode } = useInterfaceMode();
+  const { mode, toggleMode, setMode } = useInterfaceMode();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
@@ -250,6 +251,14 @@ function FinxeptTerminalContent() {
       document.documentElement.style.overscrollBehavior = 'auto';
     };
   }, []);
+
+  // Check URL parameters for mode
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('mode') === 'war-room') {
+      setMode('war-room');
+    }
+  }, [setMode]);
 
   // Get clickable session display component
   const getClickableSessionDisplay = () => {
@@ -453,6 +462,13 @@ function FinxeptTerminalContent() {
       }
 
       // Only trigger function keys without modifiers (except F11 which browser handles)
+      // Special case: Alt+W to toggle War Room
+      if (event.altKey && (event.key === 'w' || event.key === 'W')) {
+        event.preventDefault();
+        setMode('war-room');
+        return;
+      }
+
       if (event.ctrlKey || event.altKey || event.shiftKey || event.metaKey) {
         return;
       }
@@ -597,6 +613,7 @@ function FinxeptTerminalContent() {
     { label: 'Zoom In', shortcut: 'Ctrl++', icon: null, action: 'zoom_in' },
     { label: 'Zoom Out', shortcut: 'Ctrl+-', icon: null, action: 'zoom_out' },
     { label: 'Reset Zoom', shortcut: 'Ctrl+0', icon: null, action: 'zoom_reset', separator: true },
+    { label: 'War Room Mode', shortcut: 'Alt+W', icon: <Maximize size={12} />, action: () => setMode('war-room') },
     { label: 'Toggle Theme', icon: <Eye size={12} />, action: 'toggle_theme' }
   ];
 
@@ -633,6 +650,12 @@ function FinxeptTerminalContent() {
       flexShrink: 0
     }
   };
+
+  if (mode === 'war-room') {
+    return (
+      <WarRoomMode />
+    );
+  }
 
   return (
     <div style={{
